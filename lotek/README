@@ -1,0 +1,3 @@
+Files here build lotek-plugins.so, which contains FindPulseFDBatch for
+use with vamp-alsa-host, and FindPulseFD for use with audacity.  The
+code is identical except for packaging.
