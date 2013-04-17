@@ -624,7 +624,7 @@ FindPulseFD::process(const float *const *inputBuffers,
                         bin_est = max_bin;
                     }
 
-                    if (fabs(bin_est - max_bin) <= 2) {
+                    if (fabs(fabs(bin_est) - max_bin) <= 4) {
 
                         std::stringstream ss;
                         ss.precision(5);

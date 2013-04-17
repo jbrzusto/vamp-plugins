@@ -635,7 +635,7 @@ FindPulseFDBatch::process(const float *const *inputBuffers,
                     // with slightly different frequency estimates whenever one of the harmonic frequency
                     // bins has peak power a little before or after the main frequency bin.
 
-                    if (fabs(bin_est - max_bin) <= 2) {
+                    if (fabs(fabs(bin_est )- max_bin) <= 4) {
                         feature.values.push_back((bin_est * ((float) m_inputSampleRate / m_plen_in_samples)) / 1000.0);
                         feature.values.push_back(10 * log10(m_freq_bin_pulse_finder[best].pulse_signal() / m_probe_scale));
                         feature.values.push_back(10 * log10(m_freq_bin_pulse_finder[best].pulse_noise() / m_probe_scale));
