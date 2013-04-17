@@ -44,7 +44,6 @@
 #include "FindPulseFDBatch.h"
 #include "FindPulse.h"
 #include "FindPulseBatch.h"
-#include "AveragePower.h"
 
 static Vamp::PluginAdapter<FindPulseFD> findPulseFDAdapter;
 static Vamp::PluginAdapter<FindPulseFDBatch> findPulseFDBatchAdapter;
