@@ -55,6 +55,11 @@
 #include <cmath>
 #include <sstream>
 
+#ifdef MINGW
+#define exp10(X) powf(10, X)
+#define fftw_free(X) fftwf_free(X)
+#endif
+
 /**
  * Look for pulses from Lotek tags - Frequency Domain version
 */
