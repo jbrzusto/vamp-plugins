@@ -30,12 +30,12 @@ PLUGIN_CODE_OBJECTS = FindPulseFD.o FindPulseFDBatch.o
 # Edit this to the location of the Vamp plugin SDK, relative to your
 # project directory
 #
-VAMP_SDK_INCLUDE_DIR = /usr/local/include/
-VAMP_SDK_LIB_DIR = /usr/local/lib
+VAMP_SDK_INCLUDE_DIR = /usr/include/
+VAMP_SDK_LIB_DIR = /usr/lib
 
 ##  Uncomment these for Linux using the standard tools:
 
-CXXFLAGS = -I$(VAMP_SDK_INCLUDE_DIR) -Wall -fPIC -O3 -mcpu=cortex-a8 -mfpu=neon -ftree-vectorize -mfloat-abi=softfp -ffast-math -fsingle-precision-constant
+CXXFLAGS = -I$(VAMP_SDK_INCLUDE_DIR) -Wall -fPIC -O3 -mcpu=cortex-a8 -mfpu=neon -ftree-vectorize -mfloat-abi=hard -ffast-math -fsingle-precision-constant
 PLUGIN_EXT = .so
 PLUGIN = $(PLUGIN_LIBRARY_NAME)$(PLUGIN_EXT)
 LDFLAGS = -shared -Wl,-soname=$(PLUGIN) $(VAMP_SDK_LIB_DIR)/libvamp-sdk.a -lfftw3f -Wl,--version-script=vamp-plugin.map
