@@ -314,7 +314,7 @@ FindPulseFD::getParameterDescriptors() const
     d.description = "Duration of a transmitted pulse in milliseconds";
     d.unit = "milliseconds";
     d.minValue = 0.1;
-    d.maxValue = 50;
+    d.maxValue = 500;
     d.defaultValue = FindPulseFD::m_default_plen;
     d.isQuantized = false;
     list.push_back(d);
