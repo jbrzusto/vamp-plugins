@@ -25,15 +25,18 @@ PLUGIN_INSTALL_DIR = ~/.vamp
 
 # Edit this to list one .o file for each .cpp file in your plugin project
 #
-PLUGIN_CODE_OBJECTS = FindPulseFD.o FindPulseFDBatch.o 
+PLUGIN_CODE_OBJECTS = FindPulseFD.o FindPulseFDBatch.o FindPulseTD.o FindPulseTDBatch.o
 
 # Edit this to the location of the Vamp plugin SDK, relative to your
 # project directory
 #
-VAMP_SDK_INCLUDE_DIR = /usr/local/include/
-VAMP_SDK_LIB_DIR = /usr/local/lib
+VAMP_SDK_INCLUDE_DIR = /usr/include/
+VAMP_SDK_LIB_DIR = /usr/lib
 
-CXXFLAGS = -I$(VAMP_SDK_INCLUDE_DIR) -Wall -fPIC -O3 -ffast-math -fsingle-precision-constant -ftree-vectorize
+CXXFLAGS_PRODUCTION = -I$(VAMP_SDK_INCLUDE_DIR) -Wall -fPIC -O3 -ffast-math -fsingle-precision-constant -ftree-vectorize
+CXXFLAGS_DEBUG = -I$(VAMP_SDK_INCLUDE_DIR) -Wall -fPIC -g3 -ffast-math -fsingle-precision-constant -ftree-vectorize
+## CXXFLAGS = $(CXXFLAGS_DEBUG)
+CXXFLAGS = $(CXXFLAGS_PRODUCTION)
 PLUGIN_EXT = .so
 PLUGIN = $(PLUGIN_LIBRARY_NAME)$(PLUGIN_EXT)
 LDFLAGS = -shared -Wl,-soname=$(PLUGIN) $(VAMP_SDK_LIB_DIR)/libvamp-sdk.a -lfftw3f -Wl,--version-script=vamp-plugin.map
@@ -47,6 +50,10 @@ lotek-plugins.o: $(PLUGIN_CODE_OBJECTS) lotek-plugins.cpp
 FindPulseFD.o: FindPulseFD.h PulseFinder.h
 
 FindPulseFDBatch.o: FindPulseFDBatch.h PulseFinder.h
+
+FindPulseTD.o: FindPulseFD.h PulseFinder.h
+
+FindPulseTDBatch.o: FindPulseTDBatch.h PulseFinder.h
 
 FindPulse.o: FindPulse.h MovingAverager.h
 
