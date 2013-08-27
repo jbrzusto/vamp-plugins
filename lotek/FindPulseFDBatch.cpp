@@ -81,9 +81,13 @@ FindPulseFDBatch::cubicMaximize(float y0, float y1, float y2, float y3)
    // Find zeroes of derivative using quadratic equation
 
    float discriminant = db * db - 4 * da * dc;
-   if (discriminant < 0.0)
-      return float(-1.0);              // error
-
+   if (discriminant < 0.0) {
+        if (discriminant < -1.0)
+            return float(-1000);              // error
+        else
+            discriminant = 0.0;
+    }              
+    
    float x1 = (-db + sqrt(discriminant)) / (2 * da);
    float x2 = (-db - sqrt(discriminant)) / (2 * da);
 
@@ -478,7 +482,8 @@ FindPulseFDBatch::process(const float *const *inputBuffers,
 
         // append each weighted sample to each window
         for (unsigned short ch = 0, k = 0; ch < m_channels; ++ch, k += 2) {
-            float avg = m_dcma[ch].get_average();
+            // float avg = m_dcma[ch].get_average();
+            float avg = 0.0;
             m_windowed[0 + k][m_num_windowed_samples[0]] = (inputBuffers[ch][i] - avg) * m_window[m_num_windowed_samples[0]];
             m_windowed[1 + k][m_num_windowed_samples[1]] = (inputBuffers[ch][i] - avg) * m_window[m_num_windowed_samples[1]];
         }
@@ -568,7 +573,7 @@ FindPulseFDBatch::process(const float *const *inputBuffers,
                     }
 
                     // use a cubic estimator to find the peak frequency estimate using nearby bins
-                    bin_low = std::max(2, std::min(m_plen_in_samples / 2 - 4, max_bin - 2));  // avoid the DC bin
+                    bin_low = std::max(2, std::min(m_plen_in_samples / 2 - 4, max_bin - 1));  // avoid the DC bin
                     
                     float bin_est = -1.0;
                     float phase[2] = {0, 0}; // 0: I, 1: Q
