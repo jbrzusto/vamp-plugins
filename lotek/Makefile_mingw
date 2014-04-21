@@ -17,15 +17,18 @@
 
 # Edit this to the base name of your plugin library
 #
-PLUGIN_LIBRARY_NAME = lotek-plugins
+PLUGIN_LIBRARY_NAME = plugins
 
 # Where the plugin library should be installed:
 
-PLUGIN_INSTALL_DIR = ~/.vamp
+PLUGIN_INSTALL_DIR = "/c/Program Files (x86)/Vamp Plugins"
+
+# Extra libraries present here needed for installation
+EXTRA_LIBS = "libfftw3f-3.dll"
 
 # Edit this to list one .o file for each .cpp file in your plugin project
 #
-PLUGIN_CODE_OBJECTS = FindPulseFD.o FindPulseFDBatch.o 
+PLUGIN_CODE_OBJECTS = FindPulseFD.o FindPulseFDBatch.o FindPulseTD.o FindPulseTDBatch.o
 
 # Edit this to the location of the Vamp plugin SDK, relative to your
 # project directory
@@ -59,5 +62,5 @@ clean:
 	rm -f *.o
 
 install: $(PLUGIN)
-	cp -f $(PLUGIN) $(PLUGIN_INSTALL_DIR)
+	cp -f $(PLUGIN) $(EXTRA_LIBS) $(PLUGIN_INSTALL_DIR)
 
