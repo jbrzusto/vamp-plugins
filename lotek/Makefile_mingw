@@ -21,7 +21,7 @@ PLUGIN_LIBRARY_NAME = plugins
 
 # Where the plugin library should be installed:
 
-PLUGIN_INSTALL_DIR = "/c/Program Files (x86)/Vamp Plugins"
+PLUGIN_INSTALL_DIR = "/c/Program Files (x86)/Audacity"
 
 # Extra libraries present here needed for installation
 EXTRA_LIBS = "libfftw3f-3.dll"
@@ -62,5 +62,7 @@ clean:
 	rm -f *.o
 
 install: $(PLUGIN)
-	cp -f $(PLUGIN) $(EXTRA_LIBS) $(PLUGIN_INSTALL_DIR)
+	su -c 'cp -f $(PLUGIN) $(EXTRA_LIBS) $(PLUGIN_INSTALL_DIR)' Administrator
+
+
 
