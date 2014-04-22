@@ -450,7 +450,7 @@ FindPulseFDBatch::getOutputDescriptors() const
     zc.description = "The locations and features of pulses";
     zc.unit = "";
     zc.hasFixedBinCount = true;
-    zc.binCount = 3;
+    zc.binCount = 6;
     zc.sampleType = OutputDescriptor::VariableSampleRate;
     zc.sampleRate = m_inputSampleRate;
     list.push_back(zc);
@@ -577,6 +577,7 @@ FindPulseFDBatch::process(const float *const *inputBuffers,
                     
                     float bin_est = -1.0;
                     float phase[2] = {0, 0}; // 0: I, 1: Q
+                    float phase_est[2];
                     if (bin_low + 3 <= m_plen_in_samples / 2) {
                         float pwr[4];
                         for (int j = bin_low; j < bin_low + 4; ++j) {
@@ -635,6 +636,23 @@ FindPulseFDBatch::process(const float *const *inputBuffers,
                         bin_est = max_bin;
                     }
 
+                    // compute the inner product between observed data and estimated frequency; this
+                    // will give us better estimates of the phase at this pulse
+
+                    for (unsigned short ch = 0; ch < m_channels; ++ch ) {
+                        // copy samples from ring buffer to fft input buffer
+                        boost::circular_buffer < float > :: iterator b = m_sample_buf[ch].begin();
+
+                        double ss=0.0, sc=0.0, th;
+                        for (int j = 0; j < m_plen_in_samples; ++j, ++b) {
+                            th = 2 * M_PI * bin_est * j / m_plen_in_samples;
+                            ss += sin(th) * (*b);
+                            sc += cos(th) * (*b);
+                        }
+                        // perform fft
+                        phase_est[ch] = atan2(sc, ss);
+                    }
+
                     // only retain the pulse if the estimated power peak is in "nearly" the same frequency
                     // bin.  Otherwise, we get repeated dumps of the same pulse slightly offset in time,
                     // with slightly different frequency estimates whenever one of the harmonic frequency
@@ -644,6 +662,9 @@ FindPulseFDBatch::process(const float *const *inputBuffers,
                         feature.values.push_back((bin_est * ((float) m_inputSampleRate / m_plen_in_samples)) / 1000.0);
                         feature.values.push_back(10 * log10(m_freq_bin_pulse_finder[best].pulse_signal() / m_probe_scale));
                         feature.values.push_back(10 * log10(m_freq_bin_pulse_finder[best].pulse_noise() / m_probe_scale));
+                        feature.values.push_back(phase_est[0]);
+                        feature.values.push_back(phase_est[1]);
+                        feature.values.push_back((max_bin * ((float) m_inputSampleRate / m_plen_in_samples)) / 1000);
                         returnFeatures[0].push_back(feature);
                     }
                 }

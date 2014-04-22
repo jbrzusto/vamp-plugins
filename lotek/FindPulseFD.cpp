@@ -569,6 +569,7 @@ FindPulseFD::process(const float *const *inputBuffers,
                     // use a cubic estimator to find the peak frequency estimate using nearby bins
                     bin_low = std::max(2, std::min(m_plen_in_samples / 2 - 4, max_bin - 1));  // avoid the DC bin
 
+                    float phase_est = atan2(m_fft_fine[0][max_bin][1] + m_fft_fine[1][max_bin][1], m_fft_fine[0][max_bin][0] + m_fft_fine[1][max_bin][0]);
                     float bin_est = -1.0;
                     float phase[2] = {0, 0}; // 0: I, 1: Q
                     if (bin_low + 3 <= m_plen_in_samples / 2) {
@@ -637,8 +638,7 @@ FindPulseFD::process(const float *const *inputBuffers,
                         ss << " freq: " << (bin_est * ((float) m_inputSampleRate / m_plen_in_samples)) / 1000
                            << " kHz; SNR: " << 10 * log10(m_freq_bin_pulse_finder[best].pulse_SNR())
                            << " dB; sig: " << 10 * log10(m_freq_bin_pulse_finder[best].pulse_signal() / m_probe_scale)
-                           << " dB; noise: " << 10 * log10(m_freq_bin_pulse_finder[best].pulse_noise() / m_probe_scale)
-                           << " dB;";
+                           << " dB; phase: " << phase_est << "; maxBinfreq: " <<  (max_bin * ((float) m_inputSampleRate / m_plen_in_samples)) / 1000;
                        
                         ss.precision(2);
                         if (m_last_timestamp[best].sec >= 0) {
