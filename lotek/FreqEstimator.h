@@ -15,6 +15,18 @@
 #include <fftw3.h>
 #include <stdint.h>
 #include <vector>
+#include <map>
+
+
+// whenever an estimator is requested, we see whether we already
+// have a plan for that number of samples and channels, so that we 
+// don't need to reallocate storage.  This is NOT thread safe!
+
+struct cachedFFTWPlan {
+  fftwf_complex *m_input; // for 1 channel: samples stored as floats; for 2 channels: floating point samples, as interleaved I/C pairs
+  fftwf_complex *m_output; // DFT output from pulse samples
+  fftwf_plan m_plan; // FFT plan for I/Q sample
+};
 
 class FreqEstimator {
 
@@ -49,10 +61,10 @@ class FreqEstimator {
   fftwf_complex *m_output; // DFT output from pulse samples
   fftwf_plan m_plan; // FFT plan for I/Q sample
 
-  static float cubicMaximize(float *y, float *coeffs = 0);
-  static float cubicInterpolate(float *coeffs, float x);
   static void generateWindowingCoefficients(int N, std::vector < float > &window, float &win_sum, float &win_sumsq);
 
+  static std::map < std::pair < int, short >, cachedFFTWPlan > m_cached_plans;
 };
+
 
 #endif // _FREQ_ESTIMATOR_H_

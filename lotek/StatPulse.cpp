@@ -1,241 +1,505 @@
+/* -*- c-basic-offset: 4 indent-tabs-mode: nil -*-  vi:set ts=8 sts=4 sw=4: */
+
 /*
-  use the boost::accumulators library to find pulses by accumulated stats
+  Vamp
 
-  idea: detect pulse 'on' and 'off' edges separately, constraining that a pulse must
-  have an on followed by an off within a constrained range, with no intervening on or off.
-  Edges are places where
-     TotalPower(x[m+1]...x[m+n]) - TotalPower(x[m-(n-1)]...x[m]) has sufficiently
-     low P value and is locally maximal (minimal) over a window of size 2n.
-     (so we compare power in n samples to the power in the next n samples, look for
-     a difference with low probability (so there's an edge-like feature) and seek
-     nearby for a potentially better difference (so we match the edge as precisely
-     as possible).
+  An API for audio analysis and feature extraction plugins.
 
-     The sequence of values of TotalPower(x[m+1]...x[m+n]) - TotalPower(x[m-(n-1)]...x[m])
-     is kept in a distribution, and quantiles are maintained for it.
+  Centre for Digital Music, Queen Mary, University of London.
+  Copyright 2006 Chris Cannam.
+
+  VAMP license:
+
+  Permission is hereby granted, free of charge, to any person
+  obtaining a copy of this software and associated documentation
+  files (the "Software"), to deal in the Software without
+  restriction, including without limitation the rights to use, copy,
+  modify, merge, publish, distribute, sublicense, and/or sell copies
+  of the Software, and to permit persons to whom the Software is
+  furnished to do so, subject to the following conditions:
+    
+  The above copyright notice and this permission notice shall be
+  included in all copies or substantial portions of the Software.
+    
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+  EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+  MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+  NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR
+  ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF
+  CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+  WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+    
+  Except as contained in this notice, the names of the Centre for
+  Digital Music; Queen Mary, University of London; and Chris Cannam
+  shall not be used in advertising or otherwise to promote the sale,
+  use or other dealings in this Software without prior written
+  authorization.
+    
+  StatPulse.cpp - find pulses with length in a given range.
+  Copyright 2014 John Brzustowski
+
+  License: GPL v 2.0 or later.  This is required in order to use fftw.
 
 */
 
-///////////////////////////////////////////////////////////////////////////////
-// main.hpp
-//
-//  Copyright 2005 Eric Niebler. Distributed under the Boost
-//  Software License, Version 1.0. (See accompanying file
-//  LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
+#include "StatPulse.h"
 
-#include <iostream>
-#include <algorithm>
-#include <boost/ref.hpp>
-#include <boost/bind.hpp>
-#include <boost/array.hpp>
-#include <boost/foreach.hpp>
-#include <boost/accumulators/accumulators.hpp>
-#include <boost/accumulators/statistics.hpp>
-#include <boost/accumulators/statistics/p_square_quantile.hpp>
-#include <boost/random.hpp>
-#include <boost/test/unit_test.hpp>
+using std::stringstream;
+using std::string;
+using std::vector;
+using std::cerr;
+using std::endl;
 
-using namespace boost;
-using namespace boost::accumulators;
+const char * StatPulse::fftw_wisdom_filename = "./fftw_wisdom.dat";
 
-// Helper that uses BOOST_FOREACH to display a range of doubles
-template<typename Range>
-void output_range(Range const &rng)
+// from Audacity 2.0.1's src/FreqWindow.cpp:
+
+
+StatPulse::StatPulse(float inputSampleRate) :
+    Plugin(inputSampleRate),
+    m_stepSize(0),
+    m_blockSize(0),
+    m_min_plen(m_default_min_plen),
+    m_max_plen(m_default_max_plen),
+    m_bkgd_len(m_default_bkgd_len),
+    m_max_pulse_prob(m_default_max_pulse_prob),
+    m_min_freq (m_default_min_freq),
+    m_max_freq (m_default_max_freq),
+    m_accept_raw_samples (0.0)
+
 {
-    bool first = true;
-    BOOST_FOREACH(double d, rng)
-    {
-        if(!first) std::cout << ", ";
-        std::cout << d;
-        first = false;
-    }
-    std::cout << '\n';
-}
-
-///////////////////////////////////////////////////////////////////////////////
-// example1
-//
-//  Calculate some useful stats using accumulator_set<> and std::for_each()
-//
-void example1()
-{
-    accumulator_set<
-        double
-      , stats<tag::min, tag::mean(immediate), tag::sum, tag::moment<2> >
-    > acc;
-
-    boost::array<double, 4> data = {0., 1., -1., 3.14159};
-
-    // std::for_each pushes each sample into the accumulator one at a
-    // time, and returns a copy of the accumulator.
-    acc = std::for_each(data.begin(), data.end(), acc);
-
-    // The following would be equivalent, and could be more efficient
-    // because it doesn't pass and return the entire accumulator set
-    // by value.
-    //std::for_each(data.begin(), data.end(), bind<void>(ref(acc), _1));
-
-    std::cout << "  min""(acc)        = " << (min)(acc) << std::endl; // Extra quotes are to prevent complaints from Boost inspect tool
-    std::cout << "  mean(acc)       = " << mean(acc) << std::endl;
-
-    // since mean depends on count and sum, we can get their results, too.
-    std::cout << "  count(acc)      = " << count(acc) << std::endl;
-    std::cout << "  sum(acc)        = " << sum(acc) << std::endl;
-    std::cout << "  moment<2>(acc)  = " << accumulators::moment<2>(acc) << std::endl;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-// example2
-//
-//  Calculate some tail statistics. This demonstrates how to specify
-//  constructor and accumulator parameters. Note that the tail statistics
-//  return multiple values, which are returned in an iterator_range.
-//
-//  It pushes data in and displays the intermediate results to demonstrate
-//  how the tail statistics are updated.
-void example2()
-{
-    // An accumulator which tracks the right tail (largest N items) and
-    // some data that are covariate with them. N == 4.
-    accumulator_set<
-        double
-      , stats<tag::tail_variate<double, tag::covariate1, right> >
-    > acc(tag::tail<right>::cache_size = 4);
-
-    acc(2.1, covariate1 = .21);
-    acc(1.1, covariate1 = .11);
-    acc(2.1, covariate1 = .21);
-    acc(1.1, covariate1 = .11);
-
-    std::cout << "  tail            = "; output_range(tail(acc));
-    std::cout << "  tail_variate    = "; output_range(tail_variate(acc));
-    std::cout << std::endl;
-
-    acc(21.1, covariate1 = 2.11);
-    acc(11.1, covariate1 = 1.11);
-    acc(21.1, covariate1 = 2.11);
-    acc(11.1, covariate1 = 1.11);
-
-    std::cout << "  tail            = "; output_range(tail(acc));
-    std::cout << "  tail_variate    = "; output_range(tail_variate(acc));
-    std::cout << std::endl;
-
-    acc(42.1, covariate1 = 4.21);
-    acc(41.1, covariate1 = 4.11);
-    acc(42.1, covariate1 = 4.21);
-    acc(41.1, covariate1 = 4.11);
-
-    std::cout << "  tail            = "; output_range(tail(acc));
-    std::cout << "  tail_variate    = "; output_range(tail_variate(acc));
-    std::cout << std::endl;
-
-    acc(32.1, covariate1 = 3.21);
-    acc(31.1, covariate1 = 3.11);
-    acc(32.1, covariate1 = 3.21);
-    acc(31.1, covariate1 = 3.11);
-
-    std::cout << "  tail            = "; output_range(tail(acc));
-    std::cout << "  tail_variate    = "; output_range(tail_variate(acc));
-}
-
-///////////////////////////////////////////////////////////////////////////////
-// example3
-//
-//  Demonstrate how to calculate weighted statistics. This example demonstrates
-//  both a simple weighted statistical calculation, and a more complicated
-//  calculation where the weight statistics are calculated and stored in an
-//  external weight accumulator.
-void example3()
-{
-    // weight == double
-    double w = 1.;
-
-    // Simple weighted calculation
-    {
-        // stats that depend on the weight are made external
-        accumulator_set<double, stats<tag::mean>, double> acc;
-
-        acc(0., weight = w);
-        acc(1., weight = w);
-        acc(-1., weight = w);
-        acc(3.14159, weight = w);
-
-        std::cout << "  mean(acc)       = " << mean(acc) << std::endl;
-    }
-
-    // Weighted calculation with an external weight accumulator
-    {
-        // stats that depend on the weight are made external
-        accumulator_set<double, stats<tag::mean>, external<double> > acc;
-
-        // Here's an external weight accumulator
-        accumulator_set<void, stats<tag::sum_of_weights>, double> weight_acc;
-
-        weight_acc(weight = w); acc(0., weight = w);
-        weight_acc(weight = w); acc(1., weight = w);
-        weight_acc(weight = w); acc(-1., weight = w);
-        weight_acc(weight = w); acc(3.14159, weight = w);
-
-        std::cout << "  mean(acc)       = " << mean(acc, weights = weight_acc) << std::endl;
+    // silently fail if wisdom cannot be found
+    FILE *f = fopen(fftw_wisdom_filename, "r");
+    if (f) {
+        (void) fftwf_import_wisdom_from_file(f);
+        fclose(f);
     }
 }
 
-void example4() {
-typedef accumulator_set<double, stats<tag::p_square_quantile> > accumulator_t;
-
-// tolerance in %
-double epsilon = 1;
-
-// a random number generator
-boost::lagged_fibonacci607 rng;
-
-accumulator_t acc0(quantile_probability = 0.001);
-accumulator_t acc1(quantile_probability = 0.01 );
-accumulator_t acc2(quantile_probability = 0.1  );
-accumulator_t acc3(quantile_probability = 0.25 );
-accumulator_t acc4(quantile_probability = 0.5  );
-accumulator_t acc5(quantile_probability = 0.75 );
-accumulator_t acc6(quantile_probability = 0.9  );
-accumulator_t acc7(quantile_probability = 0.99 );
-accumulator_t acc8(quantile_probability = 0.999);
-
-for (int i=0; i<100000; ++i)
+StatPulse::~StatPulse()
 {
-    double sample = rng();
-    acc0(sample);
-    acc1(sample);
-    acc2(sample);
-    acc3(sample);
-    acc4(sample);
-    acc5(sample);
-    acc6(sample);
-    acc7(sample);
-    acc8(sample);
+    // silently fail if we can't export wisdom
+    FILE *f = fopen(fftw_wisdom_filename, "wb");
+    if (f) {
+        (void) fftwf_export_wisdom_to_file(f);
+        fclose(f);
+    }
 }
 
-BOOST_CHECK_CLOSE( p_square_quantile(acc0), 0.001, 15*epsilon );
-BOOST_CHECK_CLOSE( p_square_quantile(acc1), 0.01 , 5*epsilon );
-BOOST_CHECK_CLOSE( p_square_quantile(acc2), 0.1  , epsilon );
-BOOST_CHECK_CLOSE( p_square_quantile(acc3), 0.25 , epsilon );
-BOOST_CHECK_CLOSE( p_square_quantile(acc4), 0.5  , epsilon );
-BOOST_CHECK_CLOSE( p_square_quantile(acc5), 0.75 , epsilon );
-BOOST_CHECK_CLOSE( p_square_quantile(acc6), 0.9  , epsilon );
-BOOST_CHECK_CLOSE( p_square_quantile(acc7), 0.99 , epsilon );
-BOOST_CHECK_CLOSE( p_square_quantile(acc8), 0.999, epsilon );
-}
-///////////////////////////////////////////////////////////////////////////////
-// main
-int main()
+string
+StatPulse::getIdentifier() const
 {
-    std::cout << "Example 1:\n";
-    example1();
-
-    std::cout << "\nExample 2:\n";
-    example2();
-
-    std::cout << "\nExample 3:\n";
-    example3();
-
-    std::cout << "\nExample 4:\n";
-    return 0;
+    return "statpulse";
 }
+
+string
+StatPulse::getName() const
+{
+    return "Find Pulses Statistically";
+}
+
+string
+StatPulse::getDescription() const
+{
+    return "Find pulses (e.g. from telemetry tags)";
+}
+
+string
+StatPulse::getMaker() const
+{
+    return "sensorgnome.org jbrzusto@fastmail.fm";
+}
+
+int
+StatPulse::getPluginVersion() const
+{
+    return 1;
+}
+
+string
+StatPulse::getCopyright() const
+{
+    return "GPL version 2 or later";
+}
+
+bool
+StatPulse::initialise(size_t channels, size_t stepSize, size_t blockSize)
+{
+    if (channels < getMinChannelCount() ||
+	channels > getMaxChannelCount()) return false;
+
+    m_channels = channels;
+    m_stepSize = stepSize;
+    m_blockSize = blockSize;
+
+    m_plen_samples = (m_max_plen / 1000.0) * m_inputSampleRate;
+
+    m_last_timestamp = Vamp::RealTime(-1, 0);
+
+    // allocate a time-domain sample buffer for interleaved channels,
+    // large enough to contain the samples for a pulse when it has
+    // been detected.  Because pulses are not detected until the
+    // sliding window determines them to be locally maximal, need to
+    // keep a rather long window.
+  
+    int buf_size = m_bkgd_samples * 2 + m_plen_samples; // enough to take us back to start of pulse from current sample
+
+    m_sample_buf[i] = boost::circular_buffer < int16_t > (buf_size * numChan);
+
+    // allocate windowed sample buffers, fft output buffers and plans
+    // for finer dfreq estimates based on pulse samples
+
+    m_complex_samples = (fftwf_complex *) fftwf_malloc(m_plen_samples * sizeof(fftw_complex));
+    m_fft_output =      (fftwf_complex *) fftwf_malloc(m_plen_samples * sizeof(fftw_complex));
+
+    m_plan = fftwf_plan_dft_c2c_1d(m_plen_samples, m_complex_samples, m_fft_output, FFTW_PATIENT);
+
+    // cap frequency limits at Nyquist
+    if (m_min_freq > m_inputSampleRate / 2000)
+        m_min_freq = m_inputSampleRate / 2000;
+    if (m_max_freq > m_inputSampleRate / 2000)
+        m_max_freq = m_inputSampleRate / 2000;
+    
+    m_num_samples = 0;
+
+    // get windowing coefficients for pulse-sized window; we don't estimate power
+    // from this, so don't need the moments
+
+    //    float ignore1, ignore2;
+    //    generateWindowingCoefficients(m_plen_samples, m_pulse_window, ignore1, ignore2);
+
+    // m_probe_scale = 2.0 / m_channels;
+
+    //for (unsigned i = 0; i < m_channels; ++i)
+    // m_dcma[i] = MovingAverager < float, float > (m_pf_size * (1 + m_noise_win_size));
+
+    return true;
+}
+
+void
+StatPulse::reset()
+{
+}
+
+StatPulse::ParameterList
+StatPulse::getParameterDescriptors() const
+{
+    ParameterList list;
+
+    ParameterDescriptor d;
+    d.identifier = "acceptsRawSamples";
+    d.name = "indicates this plugin can accept raw samples from a vamp host";
+    d.description = "Not a user parameter; vamp-hosts set this to 1.";
+    d.unit = "";
+    d.minValue = 0;
+    d.maxValue = 0;
+    d.defaultValue = 0;
+    d.isQuantized = false;
+    list.push_back(d);
+
+    d.identifier = "minplen";
+    d.name = "Minimum Pulse Length (unit: milliseconds)";
+    d.description = "Minimum duration of a transmitted pulse in milliseconds";
+    d.unit = "milliseconds";
+    d.minValue = 0.1;
+    d.maxValue = 500;
+    d.defaultValue = StatPulse::m_default_min_plen;
+    d.isQuantized = false;
+    list.push_back(d);
+
+    d.identifier = "maxplen";
+    d.name = "Maximum Pulse Length (unit: milliseconds)";
+    d.description = "Maximum duration of a transmitted pulse in milliseconds";
+    d.unit = "milliseconds";
+    d.inValue = 0.1;
+    d.maxValue = 500;
+    d.defaultValue = StatPulse::m_default_max_plen;
+    d.isQuantized = false;
+    list.push_back(d);
+
+    d.identifier = "bkgdlen";
+    d.name = "Size of background window (unit: milliseconds)";
+    d.description = "Size of each of two adjacent windows used to compare power for pulse edge detection.";
+    d.unit = "milliseconds";
+    d.minValue = 0.1;
+    d.maxValue = 500;
+    d.defaultValue = StatPulse::m_default_bkgd_len;
+    d.isQuantized = false;
+    list.push_back(d);
+
+    d.identifier = "maxpulseprob";
+    d.name = "log10(P-value) for pulse edge detection";
+    d.description = "The maximum P-value for a t-test between the mean power in two adjacent windows on either side of pulse edge";
+    d.unit = "";
+    d.minValue = 1e-12;
+    d.maxValue = 1e-2;
+    d.defaultValue = StatPulse::m_default_max_pulse_prob;
+    d.isQuantized = false;
+    list.push_back(d);
+
+    d.identifier = "minfreq";
+    d.name = "Minimum Pulse Offset Frequency (unit: kHz)";
+    d.description = "Minimum frequency by which pulse differs from receiver, in kHz";
+    d.unit = "kHz";
+    d.minValue = -m_inputSampleRate / 2000;
+    d.maxValue = m_inputSampleRate / 2000;
+    d.defaultValue = StatPulse::m_default_min_freq;
+    d.isQuantized = false;
+    list.push_back(d);
+
+    d.identifier = "maxfreq";
+    d.name = "Maximum Pulse Offset Frequency (unit: kHz)";
+    d.description = "Maximum frequency by which pulse differs from receiver, in kHz";
+    d.unit = "kHz";
+    d.minValue = -m_inputSampleRate / 2000;
+    d.maxValue = m_inputSampleRate / 2000;
+    d.defaultValue = StatPulse::m_default_max_freq;
+    d.isQuantized = false;
+    list.push_back(d);
+
+    return list;
+}
+
+float
+StatPulse::getParameter(string id) const
+{
+    if (id == "acceptsRawSamples") {
+        return m_accept_raw_samples;
+    } else if (id == "minplen") {
+        return m_min_plen;
+    } else if (id == "maxplen") {
+        return m_max_plen;
+    } else if (id == "bkgdlen") {
+        return m_bkgd_len;
+    } else if (id == "noisesize") {
+        return m_noise_win_size;
+    } else if (id == "pulsesep") {
+        return m_min_pulse_sep;
+    } else if (id == "minfreq") {
+        return m_min_freq;
+    } else if (id == "maxfreq") {
+        return m_max_freq;
+    }
+    return 0.f;
+}
+
+void
+StatPulse::setParameter(string id, float value)
+{
+    if (id == "plen") {
+        StatPulse::m_default_plen = m_plen = value;
+    } else if (id == "minsnr") {
+        StatPulse::m_default_min_pulse_SNR_dB =  value;
+        m_min_pulse_SNR = exp10(value / 10.0);
+    } else if (id == "noisesize") {
+        StatPulse::m_default_noise_win_size = m_noise_win_size = value;
+    } else if (id == "pulsesep") {
+        StatPulse::m_default_min_pulse_sep = m_min_pulse_sep = value;
+    } else if (id == "minfreq") {
+        StatPulse::m_default_min_freq = m_min_freq = value;
+    } else if (id == "maxfreq") {
+        StatPulse::m_default_max_freq = m_max_freq = value;
+    }
+}
+
+
+StatPulse::OutputList
+StatPulse::getOutputDescriptors() const
+{
+    OutputList list;
+
+    OutputDescriptor zc;
+
+    zc.identifier = "pulses";
+    zc.name = "Pulses";
+    zc.description = "The locations and features of pulses";
+    zc.unit = "";
+    zc.hasFixedBinCount = true;
+    zc.binCount = 0;
+    zc.sampleType = OutputDescriptor::VariableSampleRate;
+    zc.sampleRate = m_inputSampleRate;
+    list.push_back(zc);
+
+    return list;
+}
+
+StatPulse::FeatureSet
+StatPulse::process(const float *const *inputBuffers,
+                     Vamp::RealTime timestamp)
+{
+    FeatureSet returnFeatures;
+
+    if (m_stepSize == 0) {
+	cerr << "ERROR: StatPulse::process: "
+	     << "StatPulse has not been initialised"
+	     << endl;
+	return returnFeatures;
+    }
+
+    for (unsigned int i=0; i < m_blockSize; ++i) {
+        for (unsigned short ch = 0; ch < m_channels; ++ch)
+            m_dcma[ch].process(inputBuffers[ch][i]);
+
+        if (! m_dcma[0].have_average())
+            continue;
+        
+        float pwr = 0.0;
+        for (unsigned short ch = 0; ch < m_channels; ++ch) {
+            //float avg = m_dcma[ch].get_average();
+                        float avg = 0.0;
+            float dc_corrected = inputBuffers[ch][i] - avg;
+            float single_pwr = dc_corrected * dc_corrected;
+            m_sample_buf[ch].push_back(dc_corrected);
+            pwr += single_pwr;
+        }
+        ++ m_num_samples;
+
+        m_pulse_finder.process(pwr);
+
+        if (m_pulse_finder.got_pulse() && m_pulse_finder.pulse_SNR() >= m_min_pulse_SNR) {
+            // dump the feature
+            Feature feature;
+            feature.hasTimestamp = true;
+            feature.hasDuration = false;
+            
+            // The pulse timestamp is taken to be the centre of the pulse
+            
+            feature.timestamp = timestamp +
+                Vamp::RealTime::frame2RealTime((signed int) i - ((m_noise_win_size + m_min_pulse_sep) * m_pf_size + m_pf_size / 2), (size_t) m_inputSampleRate);                    
+            
+            // compute a finer estimate of pulse offset frequency
+            
+            for (unsigned short ch = 0; ch < m_channels; ++ch ) {
+                // copy samples from ring buffer to fft input buffer
+                boost::circular_buffer < float > :: iterator b = m_sample_buf[ch].begin();
+                
+                for (int j = 0; j < m_plen_samples; ++j, ++b) {
+                    m_windowed_fine[ch][j] = (float) *b * m_pulse_window[j];
+                }
+                // perform fft
+                fftwf_execute(m_plan_fine[ch]);
+            }
+            // find the max power bin
+            
+            int bin_low = 1;
+            int bin_high = m_plen_samples / 2;
+            
+            float max_power = 0.0;
+            int max_bin = -1;
+            for (int j = bin_low; j < bin_high; ++j) {
+                float pwr = 0.0;
+                for (unsigned short ch = 0; ch < m_channels; ++ch )
+                    pwr += m_fft_fine[ch][j][0] * m_fft_fine[ch][j][0] + m_fft_fine[ch][j][1] * m_fft_fine[ch][j][1];
+                if (pwr > max_power) {
+                    max_power = pwr;
+                    max_bin = j;
+                }
+            }
+            
+            // use a cubic estimator to find the peak frequency estimate using nearby bins
+            bin_low = std::max(1, std::min(m_plen_samples / 2 - 4, max_bin - 1));  // avoid the DC bin
+            
+            float bin_est = -1.0;
+            float phase[2] = {0, 0}; // 0: I, 1: Q
+            if (bin_low + 3 <= m_plen_samples / 2) {
+                float pwr[4];
+                for (int j = bin_low; j < bin_low + 4; ++j) {
+                    pwr[j - bin_low] = 0;
+                    for (unsigned short ch = 0; ch < m_channels; ++ch )
+                        pwr[j - bin_low] += m_fft_fine[ch][j][0] * m_fft_fine[ch][j][0] + m_fft_fine[ch][j][1] * m_fft_fine[ch][j][1];
+                }
+                // get the estimate of the peak beat frequency (in bin units)
+                float bin_offset_est = cubicMaximize(pwr[0], pwr[1], pwr[2], pwr[3]);                
+                bin_est = bin_low + bin_offset_est;
+                if (bin_offset_est == -1000.0 || bin_est > bin_high || fabs(bin_est - max_bin) > 1.5) {
+                    bin_est = max_bin;
+                }
+                if (m_channels == 2) {
+                    // if we have 2 channels, assume they form
+                    // an I/Q pair (as for the funcubedongle),
+                    // and use this to estimate the correct
+                    // sign for the beat frequency
+
+                    // Estimate the phase angle at peak
+                    // frequency for each channel (I and Q).
+                    // I'm not sure this approach to cubic
+                    // interpolation of a circular function is
+                    // correct, but it seems to work.  We map
+                    // phase angles to locations on the unit
+                    // circle, then perform cubic
+                    // interpolataion of x and y coordinates
+                    // separately, then project back to a phase
+                    // angle.
+                    
+                    // float phasorx[2][4], phasory[2][4];
+                    // for (int i = 0; i < 2; ++i) {
+                    //     for (int j=0; j < 4; ++j) {
+                    //         float theta = atan2f(m_fft_fine[i][j+bin_low][1], m_fft_fine[i][j+bin_low][0]);
+                    //         phasorx[i][j] = cosf(theta);
+                    //         phasory[i][j] = sinf(theta);
+                    //     }
+                    //     phase[i] = atan2(cubicInterpolate(phasory[i][0], phasory[i][1], phasory[i][2], phasory[i][3], bin_est - bin_low),
+                    //                      cubicInterpolate(phasorx[i][0], phasorx[i][1], phasorx[i][2], phasorx[i][3], bin_est - bin_low));
+                    // }
+
+                    for (unsigned i=0; i < 2; ++i)
+                        phase[i] = atan2f(m_fft_fine[i][max_bin][0], m_fft_fine[i][max_bin][1]);
+                    // If shorter phase change from I to Q is positive, then reverse sign of
+                    // frequency estimate.  I don't understand why this works - would have thought
+                    // that what mattered was whether the phase change was > or < 90 degrees.
+                    // Regardless, it's not a very stable sign estimator for frequencies < 1 kHz,
+                    // but then neither is the frequency estimator itself.
+                    
+                    if ((phase[0] < phase[1] && phase[1] - phase[0] < M_PI)
+                        || (phase[0] > phase[1] && phase[0] - phase[1] > M_PI))
+                        bin_est  = - bin_est;
+                }
+            } else {
+                bin_est = max_bin;
+            }
+            
+            //            if (fabs(fabs(bin_est) - max_bin) > 4)
+            //                bin_est = max_bin;
+                
+            std::stringstream ss;
+            ss.precision(5);
+                
+            ss << " freq: " << (bin_est * ((float) m_inputSampleRate / m_plen_samples)) / 1000
+               << " kHz; SNR: " << 10 * log10(m_pulse_finder.pulse_SNR())
+               << " dB; sig: " << 10 * log10(m_pulse_finder.pulse_signal() * m_probe_scale)
+               << " dB; noise: " << 10 * log10(m_pulse_finder.pulse_noise() * m_probe_scale)
+               << " dB; phaseI: " << phase[0] * 180 /  M_PI
+               << " ; phaseQ: " << phase[1] * 180 / M_PI
+               << " ;";
+                
+            ss.precision(2);
+            if (m_last_timestamp.sec >= 0) {
+                Vamp::RealTime gap =  feature.timestamp - m_last_timestamp;
+                if (gap.sec < 1) {
+                    ss.precision(0);
+                    ss << "; Gap: " << gap.msec() << " ms";
+                } else {
+                    ss.precision(1);
+                    ss << "; Gap: " << gap.sec + (double) gap.msec()/1000 << " s";
+                }
+            }
+            m_last_timestamp = feature.timestamp;
+            feature.label = ss.str();
+            returnFeatures[0].push_back(feature);
+        }
+    }
+    return returnFeatures;
+}
+
+StatPulse::FeatureSet
+StatPulse::getRemainingFeatures()
+{
+    return FeatureSet();
+}
+
+float StatPulse::m_default_plen = 2.5; // milliseconds
+float StatPulse::m_default_min_pulse_SNR_dB = 5; // dB
+int StatPulse::m_default_noise_win_size = 5; // pulse lengths
+int StatPulse::m_default_min_pulse_sep = 1; //pulse lengths
+float StatPulse::m_default_min_freq = 2.0; // 2 kHz
+float StatPulse::m_default_max_freq = 24.0; // 24 kHz

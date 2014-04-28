@@ -49,7 +49,7 @@
 #include <boost/circular_buffer.hpp>
 #include "vamp-sdk/Plugin.h"
 #include "PulseFinder.h"
-#include "MovingAverager.h"
+#include "FreqEstimator.h"
 #include <complex>
 #include <fftw3.h>
 #include <boost/circular_buffer.hpp>
@@ -64,9 +64,6 @@
 class StatPulse : public Vamp::Plugin
 {
 public:
-    static float cubicMaximize(float y0, float y1, float y2, float y3);
-    static float cubicInterpolate(float y0, float y1, float y2, float y3, float x);
-    static void generateWindowingCoefficients(int N, std::vector < float > &window, float &win_sum, float &win_sumsq);
 
     StatPulse(float inputSampleRate);
     virtual ~StatPulse();
@@ -111,16 +108,20 @@ protected:
     float m_max_pulse_prob; // maximum P-value for a pulse to be accepted
     float m_min_freq;  // only accept pulses whose estimated offset frequency is at least this (can be negative)
     float m_max_freq;  // only accept pulses whose estimated offset frequency is at most this (can be negative)
+    float m_accept_raw_samples; // defaults to 0; set to 1.0 by host when it can provide raw samples
 
     // parameter defaults
     static float m_default_min_plen;
     static float m_default_max_plen;
-    static float m_bkgd_len;
+    static float m_default_bkgd_len;
     static float m_default_max_pulse_prob;
     static float m_default_min_freq;
     static float m_default_max_freq;
 
     // internal registers
+    int m_plen_samples;  // maximum pulse length, in samples
+    int m_bkgd_samples;  // length of background window, in samples
+
     float m_probe_scale; // divisor to convert raw probe value to power
     float m_min_probe; // scaled value of m_min_pulse_power_dB
     int m_pf_size; // size of peak finder moving average window, in samples
@@ -129,15 +130,13 @@ protected:
     // the following members are used to calculate a finer estimate of dfreq once a pulse has been found
     std::vector < float > m_pulse_window; // windowing function for FFT on pulse candidates
 
-    float *m_windowed_fine; // windowed samples
-    boost::circular_buffer < float > m_sample_buf; // ring buffer of time domain samples from each channel, interleaved as I/C complex pair
-    fftwf_plan m_plan_fine; // FFT plans for pulse samples on each channel
-    fftwf_complex *m_fft_fine; // DFT output from pulse samples
+    boost::circular_buffer < int16_t > m_sample_buf; // ring buffer of time domain samples from each channel, interleaved as I/C complex pair; fixme: hardcoded S16_LE
 
     int m_num_samples;  // number of samples processed
 
     PulseFinder < double > m_pulse_finder;
 
+    FreqEstimator freq_est;
     static const char * fftw_wisdom_filename;
 };
 

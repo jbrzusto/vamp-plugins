@@ -107,11 +107,13 @@ protected:
     size_t m_blockSize;
     
     // parameters
-    float m_plen;        // length of pulse we're trying to detect, in ms
-    int m_plen_in_samples; // length of pulse, measured in samples
+    const static int MAX_NUM_PULSE_LENGTHS = 6;
+
+    std::vector < float > m_plen;        // length of pulse we're trying to detect, in ms
+    std::vector < int > m_plen_in_samples; // length of pulse, measured in samples
     float m_min_pulse_SNR; // minimum pulse power to be accepted (linear units)
-    int m_noise_win_size; // size of noise window on each side of pulse, in multiples of pulse length
-    int m_min_pulse_sep; // minimum separation between pulses, in multiples of pulse length
+    float m_noise_win_size; // noise window on each side of a pulse (regardless of plen)
+    int m_noise_win_size_in_samples; // size of noise window on each side of pulse, in samples
     float m_min_freq;  // only accept pulses from bins whose centre frequency is at least this
     float m_max_freq;  // only accept pulses from bins whose centre frequency is at most this
 
@@ -126,22 +128,20 @@ protected:
     // internal registers
     float m_probe_scale; // divisor to convert raw probe value to power
     float m_min_probe; // scaled value of m_min_pulse_power_dB
-    int m_pf_size; // size of peak finder moving average window (in units of fft windows)
+    int m_pf_size; // size of peak finder moving average window, in samples
     Vamp::RealTime  m_last_timestamp; // timestamp of previous pulse
 
     // the following members are used to calculate a finer estimate of dfreq once a pulse has been found
     std::vector < float > m_pulse_window; // windowing function for FFT on pulse candidates
 
-    float *m_windowed_fine[2]; // windowed samples
-    boost::circular_buffer < float > m_sample_buf[2]; // ring buffer of time domain samples from each channel
-    fftwf_plan m_plan_fine[2]; // FFT plans for pulse samples on each channel
-    fftwf_complex *m_fft_fine[2]; // DFT output from pulse samples
+    float *m_windowed_fine; // windowed samples
+    boost::circular_buffer < float > m_sample_buf; // ring buffer of time domain samples from each channel, interleaved as I/C complex pair
+    fftwf_plan m_plan_fine; // FFT plans for pulse samples on each channel
+    fftwf_complex *m_fft_fine; // DFT output from pulse samples
 
     int m_num_samples;  // number of samples processed
 
     PulseFinder < double > m_pulse_finder;
-
-    MovingAverager < float, float > m_dcma[2]; // moving averager for removing DC on each channel
 
     static const char * fftw_wisdom_filename;
 };

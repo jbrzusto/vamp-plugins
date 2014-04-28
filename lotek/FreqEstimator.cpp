@@ -147,84 +147,6 @@ float FreqEstimator::get (int16_t *samples, unsigned frames, float *pwr_out)
     return (win + bin_offset) * m_freq_scale;
 }
 
-float 
-FreqEstimator::cubicMaximize(float *y, float *coeffs)
-{
-    // find the location of the maximum of a cubic curve,
-    // given its values at x=-1, 0, 1, 2
-
-    // find coefficients
-
-    float a, b, c;
-
-    a = (y[3] - y[0]) / 6.0 + (y[1] - y[2]) / 2.0;
-    b = (y[0] + y[2]) / 2.0 - y[1];
-    c = -y[0] / 3.0 - y[1] / 2.0 + y[2] - y[3]/6.0; 
-
-    // save coefficients, if caller passed a pointer
-    if (coeffs) {
-        coeffs[0] = a;
-        coeffs[1] = b;
-        coeffs[2] = c;
-        coeffs[3] = y[1];
-    };
-
-    // Take derivative
-
-    float da, db, dc;
-
-    da = 3 * a;
-    db = 2 * b;
-    dc = c;
-
-    // Find zeroes of derivative using quadratic equation
-
-    float discriminant = db * db - 4 * da * dc;
-    if (discriminant < 0.0) {
-        if (discriminant < -1.0)
-            return float(-1000);              // error
-        else
-            discriminant = 0.0;
-    }              
-
-    float x1 = (-db + sqrt(discriminant)) / (2 * da);
-    float x2 = (-db - sqrt(discriminant)) / (2 * da);
-
-    if (std::isfinite(x1) && std::isfinite(x2)) {
-
-        // The one which corresponds to a local _maximum_ in the
-        // cubic is the one we want - the one with a negative
-        // second derivative
-
-        float dda = 2 * da;
-        float ddb = db;
-
-        if (dda * x1 + ddb < 0)
-            {
-                return x1;
-            }
-        else
-            {
-                return x2;
-            }
-    } else {
-        // da is too small, so treat this as a quadratic
-        // equation, provided b is negative
-        if (b < 0.0) {
-            x1 = - c / (2 * b);
-            if (std::isfinite(x1))
-                return x1;
-        }
-    }
-    return -1000; // error, no estimate possible
-}
-
-float 
-FreqEstimator::cubicInterpolate(float *coeffs, float x)
-{
-    return coeffs[3] + x * (coeffs[2] + x * (coeffs[1] + x * coeffs[0]));
-};
-
 void
 FreqEstimator::generateWindowingCoefficients(int N, std::vector < float > &window, float &win_sum, float &win_sumsq)
 {
@@ -242,3 +164,6 @@ FreqEstimator::generateWindowingCoefficients(int N, std::vector < float > &windo
 
 const char * FreqEstimator::m_fftw_wisdom_filename = "./fftw_wisdom.dat";
 bool FreqEstimator::m_fftw_wisdom_loaded = false;
+
+std::map < std::pair < int, short >, cachedFFTWPlan > 
+FreqEstimator::m_cached_plans;
