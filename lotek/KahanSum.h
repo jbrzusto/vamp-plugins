@@ -18,8 +18,8 @@
 template < typename DATATYPE >
 class KahanSum {
  public:
-  KahanSum () {
-    sum = 0.0;
+  KahanSum (DATATYPE initial = 0.0) {
+    sum = initial;
     carry = 0.0;
   };
 
@@ -34,6 +34,13 @@ class KahanSum {
   KahanSum & operator -= (const DATATYPE & x) {
     return *this += (-x);
   };
+
+  KahanSum & operator = (const DATATYPE & x) {
+    sum = x;
+    carry = 0.0;
+    return *this;
+  };
+
 
   operator DATATYPE () {
     return sum;
