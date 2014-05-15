@@ -23,6 +23,7 @@
 // power, while that with the two low side segments gives the "noise".
 
 #include <boost/circular_buffer.hpp>
+#include "KahanSum.h"
 
 template < typename DATATYPE >
 class PulseFinder {
@@ -112,8 +113,8 @@ class PulseFinder {
     // even though incoming data are all non-negative.
     // fix this!
 
-    m_signal = std::max((DATATYPE) 0.0, m_signal);
-    m_noise = std::max(m_noise_floor, m_noise);
+      m_signal = std::max((DATATYPE) 0.0, (DATATYPE) m_signal);
+    m_noise = std::max(m_noise_floor,  (DATATYPE) m_noise);
 
     if (m_sample_buf.full()) {
       // we have a full probe value; push it into the probe buffer
@@ -170,8 +171,8 @@ protected:
   boost::circular_buffer < DATATYPE > m_sample_buf;
   boost::circular_buffer < DATATYPE > m_probe_signal_buf;
   boost::circular_buffer < DATATYPE > m_probe_noise_buf;
-  DATATYPE m_signal;
-  DATATYPE m_noise;
+  KahanSum < DATATYPE > m_signal;
+  KahanSum < DATATYPE > m_noise;
   DATATYPE m_noise_floor;
   int m_max_probe_index;
   DATATYPE m_max_probe_SNR;
