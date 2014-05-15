@@ -61,6 +61,9 @@ FindPulseBatch.o: FindPulseBatch.h MovingAverager.h
 
 AveragePower.o: AveragePower.h MovingAverager.h
 
+testKahanSum: KahanSum.h testKahanSum.cpp
+	g++ -o testKahanSum testKahanSum.cpp
+
 clean:
 	rm -f *.o
 
