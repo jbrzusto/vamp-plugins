@@ -43,6 +43,7 @@ LDFLAGS = -shared -Wl,-soname=$(PLUGIN) $(VAMP_SDK_LIB_DIR)/libvamp-sdk.a -lfftw
 
 $(PLUGIN): $(PLUGIN_CODE_OBJECTS) lotek-plugins.o
 	   $(CXX) -o $@ $^ $(LDFLAGS)
+	   strip $@
 
 lotek-plugins.o: $(PLUGIN_CODE_OBJECTS) lotek-plugins.cpp
 
