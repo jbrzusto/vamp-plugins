@@ -240,7 +240,7 @@ FindPulseFDBatch::initialise(size_t channels, size_t stepSize, size_t blockSize)
     // costs very much:  a few hundred float adds every 131072 FFTs, and an FFT is done
     // for every 12 samples, so this is only every 33 seconds or so per channel
 
-    m_freq_bin_pulse_finder = std::vector < PulseFinder < double > > (num_bins, PulseFinder < double > (131072, m_pf_size, m_pf_size * m_noise_win_size, m_pf_size * m_min_pulse_sep));
+    m_freq_bin_pulse_finder = std::vector < PulseFinder < double > > (num_bins, PulseFinder < double > (m_pf_size, m_pf_size * m_noise_win_size, m_pf_size * m_min_pulse_sep));
 
     // allocate time-domain sample buffers for each channel which are large enough to contain
     // the samples for a pulse when it has been detected.  Because pulses are not
