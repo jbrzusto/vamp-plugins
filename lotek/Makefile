@@ -35,8 +35,8 @@ VAMP_SDK_LIB_DIR = /usr/lib
 
 CXXFLAGS_PRODUCTION = -I$(VAMP_SDK_INCLUDE_DIR) -Wall -fPIC -O3 -ffast-math -fsingle-precision-constant -ftree-vectorize
 CXXFLAGS_DEBUG = -I$(VAMP_SDK_INCLUDE_DIR) -Wall -fPIC -g3 -ffast-math -fsingle-precision-constant -ftree-vectorize
-## CXXFLAGS = $(CXXFLAGS_DEBUG)
-CXXFLAGS = $(CXXFLAGS_PRODUCTION)
+CXXFLAGS = $(CXXFLAGS_DEBUG)
+##CXXFLAGS = $(CXXFLAGS_PRODUCTION)
 PLUGIN_EXT = .so
 PLUGIN = $(PLUGIN_LIBRARY_NAME)$(PLUGIN_EXT)
 LDFLAGS = -shared -Wl,-soname=$(PLUGIN) $(VAMP_SDK_LIB_DIR)/libvamp-sdk.a -lfftw3f -Wl,--version-script=vamp-plugin.map
@@ -60,6 +60,13 @@ FindPulse.o: FindPulse.h MovingAverager.h
 FindPulseBatch.o: FindPulseBatch.h MovingAverager.h
 
 AveragePower.o: AveragePower.h MovingAverager.h
+
+FreqEstimator.o: FreqEstimator.h
+
+testFreqEstimator.o: FreqEstimator.h testFreqEstimator.cpp
+
+testFreqEstimator: testFreqEstimator.o FreqEstimator.o
+	$(CXX) -o $@ $^ -lfftw3f -lm
 
 clean:
 	rm -f *.o
