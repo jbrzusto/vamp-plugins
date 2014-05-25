@@ -65,20 +65,20 @@ protected:
 
     bool m_have_window;
     std::vector < float > m_window;
-    float m_win_sum;
-    float m_win_sumsq;
-    float m_power_scale;
+    double m_win_sum;
+    double m_win_sumsq;
+    double m_power_scale;
 
-    float binRatio(float d); // ratio of spectral power in bin x+d to bin x+d+1 for the function exp(2*pi*x*t)
-    float estimateBinOffset(float pwrPrev, float pwrMax, float pwrNext); // estimate bin offset (from 0) given power at max and previous
-    
-    std::vector < float > m_ratio2_to_offset; // lookup table that inverts binRatio function
-    std::vector < float > m_ratio3_to_offset; // lookup table that inverts binRatio function
+    float binRatio(float d); // ratio of spectral power in bin x+d to true power for the function exp(2 * pi * %i * x * t)
+    float twoBinRatio(float d); // ratio of spectral power in bin x+d to bin x+d+1 for the function exp(2 * pi * %i * x * t)
+    float estimateBinOffset(int bin); // given 'bin' has max power, estimate the offset to the true frequency using adjacent bins, and the ratio of bin power to true power
+    std::vector < float > m_ratio2_to_offset; // lookup table that inverts twoBinRatio function
+    std::vector < float > m_ratio3_to_offset; // lookup table that inverts twoBinRatio function
 
-    float m_ratioMapScale2;
-    float m_ratioMapScale3;
+    double m_ratioMapScale2;
+    double m_ratioMapScale3;
 
-    void calculateRatioMaps(float prec = 0.001); // set up ratio to offset lookup tables
+    void calculateRatioMaps(float prec = 0.00001); // set up ratio to offset lookup tables
 
     static std::map < std::pair < int, short >, cachedFFTWPlan > m_cached_plans;
 };

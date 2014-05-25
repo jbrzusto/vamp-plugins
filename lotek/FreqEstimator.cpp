@@ -1,7 +1,12 @@
 /* -*- mode:c++; c-basic-offset: 4 indent-tabs-mode: nil -*-  vi:set ts=8 sts=4 sw=4: */
 
 /*
-    FreqEstimator.h - estimate main frequency of a pulse from raw audio data.  FIXME: hardcoded S16_LE
+    FreqEstimator.h - estimate main frequency of a pulse from raw audio data.
+    Assumes input data have had DC offset corrected with a slow-moving average,
+    with a decay constant much larger than the pulse length.  That way, 
+    the 0 bin of the DFT contains energy from the pulse, rather than the 
+    DC offset.  This is required in case the pulse frequency is less than
+    the frequency of the 1-st non-DC DFT bin.
     
     Copyright 2014 John Brzustowski
 
@@ -73,7 +78,7 @@ FreqEstimator::~FreqEstimator()
 }
 
 
-#define Pwr(x) (((float *)(&x))[0] * ((float *)(&x))[0] + ((float *)(&x))[1] * ((float *)(&x))[1])
+#define Pwr(x) ((x)[0]*(x)[0] + (x)[1]*(x)[1])
 
 float FreqEstimator::get (int16_t *samples, int frames, float *pwr_out)
 {
@@ -109,33 +114,21 @@ float FreqEstimator::get (int16_t *samples, int frames, float *pwr_out)
             
     float max_power = 0.0;
     int max_bin = -1;
-    for (j = 1; j < bin_high; ++j) {  // skip DC bin (j = 0)
-        float pwr = Pwr (m_output[j]);
+    for (j = 0; j < bin_high; ++j) {  // skip DC bin (j = 0)
+        float pwr = m_output[j][0] = Pwr (m_output[j]);
         if (pwr > max_power) {
             max_power = pwr;
             max_bin = j;
         }
     }
             
-    float prevPwr, nextPwr;
+    std::cout << "Maxbin: " << max_bin << "  Max power: " << max_power << std::endl;
 
-    if (max_bin > 1) {
-        prevPwr = Pwr(m_output[max_bin - 1]);
-    } else {
-        prevPwr = 0;
-    }
-    if (max_bin >= bin_high) {
-        nextPwr = 0;
-    } else {
-        nextPwr = Pwr(m_output[max_bin + 1]);
-    }
+    float bin_offset = estimateBinOffset(max_bin);
 
-
-    float bin_offset = estimateBinOffset(prevPwr, max_power, nextPwr);
-
-    // sum the energy in the three bins, then scale
+    // if requested, estimate the power at the true frequency
     if (pwr_out)
-        *pwr_out = 10 * log10f((prevPwr + max_power + nextPwr) * m_power_scale / 32767 / 32767);
+        *pwr_out = 10 * log10f(max_power * binRatio(bin_offset) * m_power_scale / 32767 / 32767);
  
     // win + bin_offset is the estimate of the (possibly non-integer) bin with the highest
     // power.  We convert that to an estimate in cycles per sample, keeping in mind that
@@ -170,11 +163,63 @@ FreqEstimator::generateWindowingCoefficients()
 float
 FreqEstimator::binRatio(float d)
 {
-    // ratio of power in adjacent bins for a pure tone of given offset
-    // frequency (in units of bins) from being an exact bin.
+    // ratio of true power at x to power in DFT bin at x + d for the function
+    // exp (2 * pi * %i% * x)
+    //
+    // courtesy of maxima:
+    //  f(d);
+    //
+    //                              n - 1   2 %i %pi d i
+    //                              ====    ------------
+    //                              \            n
+    // (%o123)                       >    %e
+    //                              /
+    //                              ====
+    //                              i = 0
+    // (%i125) f90(optimize(factor(simplify_sum(cabs(f(0)/f(d))))));
+    // block([%1,%2,%3,%4],%1:2*%pi*d/n,%2:cos(%1),%3:2*%pi*d,%4:cos(%3)&
+    // &,2*abs(%2-1)*abs(n)/sqrt((sin(%3)**2+%4**2-2*%4+1)*(sin(%1)**2+%2&
+    // &**2-2*%2+1)))
+    
+    float t1, t2, t3, t4, t5, t6;
+    t1 = 2 * M_PI * d;
+    t3 = t1 / m_max_frames;
+    t2 = cos(t3);
+    t4 = cos(t1);
+    t5 = sin(t1);
+    t6 = sin(t3);
+    return sqrt((fabs(t2 - 1.0) * m_max_frames) * 2.0 / ((t5 * t5 + t4 * t4 - 2.0 * t4 + 1.0) * (t6 * t6 + t2 * t2 - 2.0 * t2 + 1.0)));
+}
 
+float
+FreqEstimator::twoBinRatio(float d)
+{
+    // ratio of power in DFT bin x+d to power in bin x+d+1 for the function
+    // exp (2 * pi * %i% * x)
+    //
+    // should be equal to binRatio(d) / binRatio (d + 1), but calculated more efficiently.
+    //
+    // courtesy of maxima:
+    //
+    // (%i127) f(d);
+    //                              n - 1   2 %i %pi d i
+    //                              ====    ------------
+    //                              \            n
+    // (%o127)                       >    %e
+    //                              /
+    //                              ====
+    //                              i = 0
+    // (%i128) f90(optimize(factor(simplify_sum(cabs(f(d)/f(d+1))))));
+    // block([%1,%2,%3,%4,%5,%6,%7,%8],%1:1/n,%2:2*%pi*d*%1,%3:cos(%2),%&
+    // &4:2*%pi*(d+1)*%1,%5:cos(%4),%6:2*%pi*d,%7:cos(%6),%8:sin(%6)**2+%&
+    // &7**2-2*%7+1,abs(%5-1)*sqrt(%8*(sin(%2)**2+%3**2-2*%3+1))/(abs(%3-&
+    // &1)*sqrt(%8*(sin(%4)**2+%5**2-2*%5+1))))
+    //
+    //
+    // Details:
+    //
     // Consider the DFT of exp(2 \pi \i f i / n) on the sequence i = 0, 1, ..., n - 1
-
+    //
     // if f = m + d where m is an integer in 2..n -2 and abs(d) <= 0.5 then 
     // this function returns Pow (m - 1) ^2 / Pow ( m ) ^2. 
     // Pow(m) is the power in bin m.
@@ -205,49 +250,123 @@ FreqEstimator::binRatio(float d)
 
 
 float 
-FreqEstimator:: estimateBinOffset(float pwrPrev, float pwrMax, float pwrNext)
+
+FreqEstimator:: estimateBinOffset(int bin) // given 'bin' has max power, estimate the offset to the true frequency using adjacent bins
+// also estimate the ratio of the observed (bin) power to the true power
 {
-    // pwrMax: the power in the bin where a local maximum occurs
-    // pwrPrev: the power in the preceding bin, if that is not the DC bin, else -1
-    // pwrNext: the power in the following bin, if that exists, else -1
-    // at most one of pwrPrev and pwrNext can be -1; other parameters must be non-negative
+    // bin the non-DC bin with maximum power
+    // Also requires that the power has been stored in the 
+    // real component of m_output.
 
-    if (pwrPrev <= 0.0)
-        return m_ratio2_to_offset [pwrNext / pwrMax * m_ratioMapScale2];
-    if (pwrNext <= 0.0)
-        return m_ratio2_to_offset [pwrPrev / pwrMax * m_ratioMapScale2];
-    
-    // in the general case, we get ratios on both sides, with each giving an offset.
-    // we average these.
+    // Provided bin is away from the endpoints 1 and -1 (i.e. m_max_frames - 1)
+    // we use the power in bin and its left and right neighbours
+    // to estimate the true frequency.  FIXME: allow for a constant noise value
+    // added to each bin.
 
-    float off1, off2;
-    if (pwrPrev >= pwrNext) { 
-        // prev is 2nd highest bin; offset is positive
-        off1 = m_ratio2_to_offset [pwrPrev / pwrMax * m_ratioMapScale2];
-        off2 = m_ratio3_to_offset [pwrNext / pwrMax * m_ratioMapScale3];
-        return - (off1 + off2) / 2;
-    } else {  
+    // We compare the ratios of power of each adjacent bin to the central
+    // one to determine which branch of the curve to apply to each side
+    // i.e. to determine whether the true frequency is above or below the
+    // exact frequency corresponding to bin.
+
+    // Then we apply the appropriate map to each ratio, and average the resulting
+    // estimated offsets.  FIXME: we can detect uniform noise by noticing when
+    // these offsets don't match well, then subtract noise until they do.
+
+    // In the case of the endpoint bins 1, and -1, we'll use the single 
+    // ratio of Pow(2) / Pow(1) and Pow(-2) / Pow (-1) respectively.
+    // But we need to know which branch of the inverse map to apply, and
+    // we don't have the power on the other side (it would be in Pow (n),
+    // but that's not calculated, of course).  So we look two bins away
+    // and compare ratios to determine which branch to use.
+    // i.e. compare Pow(3) to Pow(-1) for the first case and
+    // compare Pow(-3) to Pow(1) for the second case.  
+    // FIXME: a similar check for additive noise could be used in these
+    // edge cases.
+
+    double pwrMax = m_output[bin][0];
+
+    double off1, off2;
+
+    if (1 || (bin > 1 && bin < m_max_frames - 1)) {
+        // the general case away from endpoints
+
+        int prevBin = bin - 1;
+        if (prevBin == -1)
+            prevBin = m_max_frames - 1;
+        int nextBin = bin +1;
+        if (nextBin == m_max_frames)
+            nextBin = 0;
+
+        double pwrPrev = m_output[prevBin][0];
+        double pwrNext = m_output[nextBin][0];
+        std::cout << pwrPrev << ',' << pwrNext << std::endl;
+
+        if (pwrPrev >= pwrNext) {
+            // prev is 2nd highest bin; offset is negative
+            off1 = m_ratio2_to_offset [pwrPrev / pwrMax * m_ratioMapScale2];
+            off2 = m_ratio3_to_offset [pwrNext / pwrMax * m_ratioMapScale3];
+            std::cout << off1 << ',' << off2 << std::endl;
+            return - (off1 + off2) / 2;
+        } else {  
         // next is 2nd highest bin; offset is positive
-        off1 = m_ratio2_to_offset [pwrNext / pwrMax * m_ratioMapScale2];
-        off2 = m_ratio3_to_offset [pwrPrev / pwrMax * m_ratioMapScale3];
-        return (off1 + off2) / 2;
-    }
+            off1 = m_ratio2_to_offset [pwrNext / pwrMax * m_ratioMapScale2];
+            off2 = m_ratio3_to_offset [pwrPrev / pwrMax * m_ratioMapScale3];
+            std::cout << off1 << ',' << off2 << std::endl;
+            return (off1 + off2) / 2;
+        }
+    } else if (bin == 1) {
+        // compare power at two bins distance from bin 1
+        // to determine branch to use; estimate offset using
+        // only power in bins 1, 2
+        double pwrPrev2 = m_output[m_max_frames - 1][0];
+        double pwrNext2 = m_output[3][0];
+        double ratio = m_output[bin + 1][0] / m_output[bin][0];
+
+//     FIXME: if true offset is < -0.5 (i.e. freq in [0, 0.5] bins, this
+//                                      is not using the correct ratio; we need a new function giving f(d+3)/f(d+2)
+// and is branch determination correct in this case?
+
+        if (pwrPrev2 >= pwrNext2) {
+            // offset is negative
+            return - m_ratio3_to_offset [ratio * m_ratioMapScale3];
+        } else {
+            // offset is positive
+            return m_ratio2_to_offset [ratio * m_ratioMapScale2];
+        }
+    } else {
+        // bin == m_max_frames - 1
+        // compare power at two bins distance from bin m_max_frames - 1
+        // to determine branch to use; estimate offset using
+        // only power in bin 2
+        double pwrPrev2 = m_output[bin - 2][0];
+        double pwrNext2 = m_output[1][0];
+        double ratio = m_output[bin - 1][0] / m_output[bin][0];
+        if (pwrPrev2 >= pwrNext2) {
+            // offset is negative
+            return - m_ratio2_to_offset [ratio * m_ratioMapScale2];
+        } else {
+            // offset is positive
+            return m_ratio3_to_offset [ratio * m_ratioMapScale3];
+        }
+    }        
 };
 
 void
 FreqEstimator::calculateRatioMaps(float prec) 
 {
-    // invert the binRatio function to a given precision, on each branch
-    // m_ratio2_to_offset will map [0,1] -> [0, 0.5] using the negative side of binRatio()
-    // m_ratio3_to_offset will map [0,1] -> [0, 0.3334095 ] using the positive side of binRatio()
+    // invert the twoBinRatio function to a given precision, on each branch
+    // m_ratio2_to_offset will map [0,1] -> [0, 0.5] using the negative side of twoBinRatio()
+    // m_ratio3_to_offset will map [0,1] -> [0, 0.3334095 ] using the positive side of twoBinRatio()
 
     // we use bisection on this monotonic function to search for inverse values
 
-    int n1 = binRatio(-0.5) / prec;
-    int n2 = binRatio( 0.5) / prec;
+    // FIXME: redo assuming linear interpolation is used on resulting values
+
+    int n1 = twoBinRatio(-0.5) / prec;
+    int n2 = twoBinRatio( 0.5) / prec;
     
-    m_ratioMapScale2 = n1 / binRatio(-0.5);
-    m_ratioMapScale3 = n2 / binRatio(0.5);
+    m_ratioMapScale2 = n1 / twoBinRatio(-0.5);
+    m_ratioMapScale3 = n2 / twoBinRatio(0.5);
 
     m_ratio2_to_offset = std::vector < float > (n1);
     m_ratio3_to_offset = std::vector < float > (n2);
@@ -255,9 +374,9 @@ FreqEstimator::calculateRatioMaps(float prec)
     int i;
     float y = 0;
     for (i = 0; i < n1; ++i) {
-        float ylo = y, yhi = 0.5;
+        float ylo = y, yhi = std::min(y + 0.1, 0.5);
         for (;;) {
-            float diff = binRatio(-y) - i / m_ratioMapScale2;
+            float diff = twoBinRatio(-y) - i / m_ratioMapScale2;
             if (fabsf(diff) < prec / 10)
                 break;
             if (diff < 0.0) {
@@ -273,9 +392,9 @@ FreqEstimator::calculateRatioMaps(float prec)
 
     y = 0;
     for (i = 0; i < n2; ++i) {
-        float ylo = y, yhi = 0.5;
+        float ylo = y, yhi = std::min(y + 0.1, 0.5);
         for (;;) {
-            float diff = binRatio(y) - i / m_ratioMapScale3;
+            float diff = twoBinRatio(y) - i / m_ratioMapScale3;
             if (fabsf(diff) < prec / 10)
                 break;
             if (diff < 0.0) {
