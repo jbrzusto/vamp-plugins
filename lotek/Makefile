@@ -70,6 +70,9 @@ testFreqEstimator.o: FreqEstimator.h testFreqEstimator.cpp
 testFreqEstimator: testFreqEstimator.o FreqEstimator.o
 	$(CXX) -o $@ $^ -L/usr/local/lib -lfftw3f
 
+testKahanSum: KahanSum.h testKahanSum.cpp
+       g++ -o testKahanSum testKahanSum.cpp
+
 clean:
 	rm -f *.o
 
