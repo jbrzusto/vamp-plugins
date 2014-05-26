@@ -36,13 +36,13 @@ main (int argc, char *argv[]) {
 
   srand48(time(0));
   for (int i = 0; i < num_samples; ++i) {
-    inbuff[2*i]   = round(32767 * (cos(2 * M_PI * test_freq * i / num_samples) + drand48() * noise_amplitude));
-    inbuff[2*i+1] = round(32767 * (sin(2 * M_PI * test_freq * i / num_samples) + drand48() * noise_amplitude));
+    inbuff[2*i]   = round(32767 * (cos(2 * M_PI * test_freq * i / num_samples) + drand48() * 2 * noise_amplitude - noise_amplitude));
+    inbuff[2*i+1] = round(32767 * (sin(2 * M_PI * test_freq * i / num_samples) + drand48() * 2 * noise_amplitude - noise_amplitude));
     true_power += inbuff[2*i]*inbuff[2*i] + inbuff[2*i+1]*inbuff[2*i+1];
   }
   true_power = 10 * log10f(true_power / 2 / 32767 / 32767);
 
-  FreqEstimator fe0(num_samples), fe1(num_samples * MULT1), fe2(num_samples * MULT2), fe3(num_samples * MULT3), fe4(4096), fe5(2048), fe6(1024);
+  FreqEstimator fe0(num_samples, 2, false), fe1(num_samples * MULT1, 2, true), fe2(num_samples * MULT2, 2, true), fe3(num_samples * MULT3, 2, true), fe4(4096, 2, true), fe5(2048, 2, true), fe6(1024, 2, true);
 
   float pwr;
 

@@ -25,9 +25,10 @@
 #define fftw_free(X) fftwf_free(X)
 #endif
 
-FreqEstimator::FreqEstimator (int max_frames, int channels) :
+FreqEstimator::FreqEstimator (int max_frames, int channels, bool standard) :
     m_max_frames(max_frames),
     m_channels(channels),
+    m_standard(standard),
     m_first_zero_frame(max_frames), // indicate input float array needs zeroing
     m_freq_scale(1.0 / max_frames),
     m_have_window(false),
@@ -61,7 +62,8 @@ FreqEstimator::FreqEstimator (int max_frames, int channels) :
         throw std::runtime_error("FreqEstimator: channels must be 1 or 2");
     }
     //    generateWindowingCoefficients();
-    calculateRatioMaps();
+    //    calculateRatioMaps();
+    calculateBalRatioMap();
 }
 
 FreqEstimator::~FreqEstimator()
@@ -78,7 +80,7 @@ FreqEstimator::~FreqEstimator()
 }
 
 
-#define Pwr(x) ((x)[0]*(x)[0] + (x)[1]*(x)[1])
+#define Pwr(x) (((x)[0]*(x)[0] + (x)[1]*(x)[1]) / m_max_frames)
 
 float FreqEstimator::get (int16_t *samples, int frames, float *pwr_out)
 {
@@ -121,8 +123,13 @@ float FreqEstimator::get (int16_t *samples, int frames, float *pwr_out)
             max_bin = j;
         }
     }
-            
-    float bin_offset = estimateBinOffset(max_bin);
+
+    float bin_offset;
+    if (m_standard) {
+        bin_offset = standardEstimateBinOffset(max_bin);
+    } else {
+        bin_offset = estimateBinOffset(max_bin);
+    }
 
     // if requested, estimate the power at the true frequency
     if (pwr_out)
@@ -134,8 +141,8 @@ float FreqEstimator::get (int16_t *samples, int frames, float *pwr_out)
 
     float bin_est = max_bin + bin_offset;
 
-    if (bin_est > m_fft_bins / 2)
-        // frequencies above 1/2 Nyquist are considered negative frequencies
+    if (bin_est > m_fft_bins)
+        // frequencies above Nyquist are considered negative frequencies
         bin_est = - (m_fft_bins - bin_est);
 
     return bin_est * m_freq_scale;
@@ -158,6 +165,34 @@ FreqEstimator::generateWindowingCoefficients()
     }
     m_have_window = true;
     m_power_scale = 1.0 / (sqrtf(m_max_frames) * (m_win_sum * m_win_sum / 2));
+}
+
+double
+FreqEstimator::balancedBinRatio(double d)
+{
+    // (Pwr(x+d)-Pwr(x+d+1)) / (Pwr(x+d)-Pwr(x+d-1)) for the function
+
+    //    return (powerAtOffset(d) - powerAtOffset(d - 1)) / (powerAtOffset(d) - powerAtOffset(d + 1));
+
+    // more stable?
+
+    // double ad = 2 * M_PI * d;
+    // // double adp1 = 2 * M_PI * (d + 1);
+    // // double adm1 = 2 * M_PI * (d - 1);
+    // double adp1 = ad;
+    // double adm1 = ad;
+
+    // double adn = ad / m_max_frames;
+    // double adp1n = adp1 / m_max_frames;
+    // double adm1n = adm1 / m_max_frames;
+
+    // return (1.0 - ((cos(adn) - 1.0) / (cos(adm1n) - 1.0)) * ((cos(adm1) - 1.0) / (cos(ad) - 1.0))) / 
+    //     (1.0 - ((cos(adn) - 1.0) / (cos(adp1n) - 1.0)) * ((cos(adp1) - 1.0) / (cos(ad) - 1.0)));
+
+    // (Pwr(d+1)-Pwr(d-1))/Pwr(d)
+    if (fabs(d) < 1e-6)
+        return 0.0;
+    return (powerAtOffset(d+1) - powerAtOffset(d-1)) / powerAtOffset(d);
 }
 
 float
@@ -249,8 +284,7 @@ FreqEstimator::twoBinRatio(float d)
 };
 
 
-float 
-
+double 
 FreqEstimator:: estimateBinOffset(int bin)
 {
     // given 'bin' has max power, estimate the offset to the true
@@ -285,25 +319,15 @@ FreqEstimator:: estimateBinOffset(int bin)
     if (nextBin == m_max_frames)
         nextBin = 0;
 
-    double pwrPrev = m_output[prevBin][0];
-    double pwrNext = m_output[nextBin][0];
+    double ratio = (m_output[nextBin][0] - m_output[prevBin][0]) / pwrMax;
 
-    // decide which branch of the inverse binratio curve to apply
-    // to each ratio
-
-    double off1, off2;
-
-    if (pwrPrev >= pwrNext) {
-            // prev is 2nd highest bin; offset is negative
-            off1 = m_ratio2_to_offset [pwrPrev / pwrMax * m_ratioMapScale2];
-            off2 = m_ratio3_to_offset [pwrNext / pwrMax * m_ratioMapScale3];
-            return - (off1 + off2) / 2.0;
-    } else {  
-        // next is 2nd highest bin; offset is positive
-            off1 = m_ratio2_to_offset [pwrNext / pwrMax * m_ratioMapScale2];
-            off2 = m_ratio3_to_offset [pwrPrev / pwrMax * m_ratioMapScale3];
-            return (off1 + off2) / 2.0;
-    }
+    double off;
+    if (ratio > 0) {
+        off = - m_balanced_ratio_to_offset[ ratio * m_balRatioMapScale];
+    } else {
+        off = m_balanced_ratio_to_offset[ - ratio * m_balRatioMapScale];
+    };
+    return off;
 };
 
 void
@@ -364,9 +388,151 @@ FreqEstimator::calculateRatioMaps(float prec)
     }
 
 };
+
+double 
+FreqEstimator::powerAtOffset(double d) {
+    return ((cos( (double) 2.0 * M_PI * d) - 1) /
+            (cos( (double) 2.0 * M_PI * d / m_max_frames) - 1));
+};
+
+void
+FreqEstimator::calculateBalRatioMap(double prec)
+{
+    // invert the balancedBinRatio function to a given precision
+    // this will map 0..1 to 0.5 .. 0.0
+    // FIXME: redo assuming linear interpolation is used on resulting values
+    
+    // int n = 1.0 / prec;
+
+    // m_balRatioMapScale = n;
+
+    // double scale = 1.0 / (double) n;
+
+    // m_balanced_ratio_to_offset = std::vector < double > (n);
+
+    // int i;
+    // double y = 0.5;
+    // for (i = 0; i < n; ++i) {
+    //     double yhi = 0.5, ylo = 0.0;
+    //     for (;;) {
+    //         double diff = balancedBinRatio(y) - i * scale;
+    //         if (fabs(diff) < prec/3 && fabs(yhi - ylo) < prec/3)
+    //             break;
+    //         if (diff >= 0.0) {
+    //             ylo = y;
+    //             y = (yhi + y) / 2;
+    //         } else {
+    //             yhi = y;
+    //             y = (ylo + y) / 2;
+    //         }
+    //     }
+    //     m_balanced_ratio_to_offset[i] = y;
+    //     std::cerr << i * m_balRatioMapScale << ',' << y << std::endl;
+    // }
+
+
+    int n = 1.0 / prec;
+
+    double ymax = 0.51362681;
+    m_balRatioMapScale = n;
+
+    double scale = 1.0 / (double) n;
+
+    m_balanced_ratio_to_offset = std::vector < double > (n);
+
+    int i;
+    double y = 0.0;
+    for (i = 0; i < n; ++i) {
+        double yhi = ymax, ylo = 0.0;
+        for (;;) {
+            double diff = balancedBinRatio(-y) - i * scale;
+            if (fabs(diff) < prec/3 && fabs(yhi - ylo) < prec/3)
+                break;
+            if (diff <= 0.0) {
+                ylo = y;
+                y = (yhi + y) / 2;
+            } else {
+                yhi = y;
+                y = (ylo + y) / 2;
+            }
+        }
+        m_balanced_ratio_to_offset[i] = -y;
+    }
+
+};
+
+double
+FreqEstimator::cubicMaximize(double y0, double y1, double y2, double y3)
+{
+   // Find coefficients of cubic
+
+   double a, b, c;
+
+   a = y0 / -6.0 + y1 / 2.0 - y2 / 2.0 + y3 / 6.0;
+
+   if (a == 0.0)
+       return double(-1); // error
+
+   b = y0 - 5.0 * y1 / 2.0 + 2.0 * y2 - y3 / 2.0;
+   c = -11.0 * y0 / 6.0 + 3.0 * y1 - 3.0 * y2 / 2.0 + y3 / 3.0;
+
+   // Take derivative
+
+   double da, db, dc;
+
+   da = 3 * a;
+   db = 2 * b;
+   dc = c;
+
+   // Find zeroes of derivative using quadratic equation
+
+   double discriminant = db * db - 4 * da * dc;
+   if (discriminant < 0.0) {
+        if (discriminant < -1.0)
+            return double(-1000);              // error
+        else
+            discriminant = 0.0;
+    }              
+    
+   double x1 = (-db + sqrt(discriminant)) / (2 * da);
+   double x2 = (-db - sqrt(discriminant)) / (2 * da);
+
+   // The one which corresponds to a local _maximum_ in the
+   // cubic is the one we want - the one with a negative
+   // second derivative
+
+   double dda = 2 * da;
+   double ddb = db;
+
+   if (dda * x1 + ddb < 0)
+   {
+      return x1;
+   }
+   else
+   {
+      return x2;
+   }
+};
+
+double 
+FreqEstimator::standardEstimateBinOffset(int max_bin)
+{
+
+    // use a cubic estimator to find the peak frequency estimate using nearby bins
+    
+    int bin_low = std::max(0, std::min(m_max_frames / 2 - 4, max_bin - 1));  // avoid the DC bin
+                    
+    if (bin_low + 3 <= m_max_frames / 2) {
+        // get the estimate of the peak beat frequency (in bin units)
+        return bin_low - max_bin + cubicMaximize(m_output[bin_low][0], m_output[bin_low+1][0], m_output[bin_low+2][0], m_output[bin_low+3][0]);
+    } else {
+        return 0;
+    }
+}
     
 std::vector < float > m_ratio2_to_offset; // lookup table converting ratio (of 2nd bin to max) to offset
 std::vector < float > m_ratio3_to_offset; // lookup table converting ratio (of 3rd bin to max) to offset
+std::vector < float > m_balanced_ratio_to_offset;
 
 const char * FreqEstimator::m_fftw_wisdom_filename = "./fftw_wisdom.dat";
 bool FreqEstimator::m_fftw_wisdom_loaded = false;
