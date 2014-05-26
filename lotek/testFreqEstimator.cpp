@@ -5,9 +5,11 @@
 #include <cmath>
 #include <vector>
 #include <stdlib.h>
+#include <time.h>
 
 #define DEFAULT_TEST_FREQ 19.12345
 #define DEFAULT_NUM_SAMPLES 120
+#define DEFAULT_NOISE_AMPLITUDE 0.1
 #define MULT1 5
 #define MULT2 10
 #define MULT3 20
@@ -17,18 +19,25 @@ main (int argc, char *argv[]) {
 
   double test_freq = DEFAULT_TEST_FREQ;
   int num_samples = DEFAULT_NUM_SAMPLES;
+  double noise_amplitude = DEFAULT_NOISE_AMPLITUDE;
+  
   if (argc > 1)
     test_freq = strtod (argv[1], 0);
 
   if (argc > 2)
     num_samples = strtol (argv[2], 0, 0);
 
+  if (argc > 3)
+    noise_amplitude = strtod (argv[3], 0);
+
   int16_t inbuff[2 * num_samples];
 
   float true_power = 0.0;
+
+  srand48(time(0));
   for (int i = 0; i < num_samples; ++i) {
-    inbuff[2*i]   = round(32767 * cos(2 * M_PI * test_freq * i / num_samples));
-    inbuff[2*i+1] = round(32767 * sin(2 * M_PI * test_freq * i / num_samples));
+    inbuff[2*i]   = round(32767 * (cos(2 * M_PI * test_freq * i / num_samples) + drand48() * noise_amplitude));
+    inbuff[2*i+1] = round(32767 * (sin(2 * M_PI * test_freq * i / num_samples) + drand48() * noise_amplitude));
     true_power += inbuff[2*i]*inbuff[2*i] + inbuff[2*i+1]*inbuff[2*i+1];
   }
   true_power = 10 * log10f(true_power / 2 / 32767 / 32767);
