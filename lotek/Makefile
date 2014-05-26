@@ -34,12 +34,14 @@ VAMP_SDK_INCLUDE_DIR = /usr/include/
 VAMP_SDK_LIB_DIR = /usr/lib
 
 CXXFLAGS_PRODUCTION = -I$(VAMP_SDK_INCLUDE_DIR) -Wall -fPIC -O3 -ffast-math -fsingle-precision-constant -ftree-vectorize
-CXXFLAGS_DEBUG = -I$(VAMP_SDK_INCLUDE_DIR) -Wall -fPIC -g3 -ffast-math -fsingle-precision-constant -ftree-vectorize
+#CXXFLAGS_DEBUG = -I$(VAMP_SDK_INCLUDE_DIR) -Wall -fPIC -g3 -ffast-math -fsingle-precision-constant -ftree-vectorize
+CXXFLAGS_DEBUG = -I$(VAMP_SDK_INCLUDE_DIR) -Wall -g3
+
 CXXFLAGS = $(CXXFLAGS_DEBUG)
 ##CXXFLAGS = $(CXXFLAGS_PRODUCTION)
 PLUGIN_EXT = .so
 PLUGIN = $(PLUGIN_LIBRARY_NAME)$(PLUGIN_EXT)
-LDFLAGS = -shared -Wl,-soname=$(PLUGIN) $(VAMP_SDK_LIB_DIR)/libvamp-sdk.a -lfftw3f -Wl,--version-script=vamp-plugin.map
+LDFLAGS = -shared -Wl,-soname=$(PLUGIN) $(VAMP_SDK_LIB_DIR)/libvamp-sdk.a -L/usr/local/lib -lfftw3f -Wl,--version-script=vamp-plugin.map
 
 
 $(PLUGIN): $(PLUGIN_CODE_OBJECTS) lotek-plugins.o
@@ -66,7 +68,7 @@ FreqEstimator.o: FreqEstimator.h
 testFreqEstimator.o: FreqEstimator.h testFreqEstimator.cpp
 
 testFreqEstimator: testFreqEstimator.o FreqEstimator.o
-	$(CXX) -o $@ $^ -lfftw3f -lm
+	$(CXX) -o $@ $^ -L/usr/local/lib -lfftw3f
 
 clean:
 	rm -f *.o

@@ -32,35 +32,27 @@ main (int argc, char *argv[]) {
 
   int16_t inbuff[2 * num_samples];
 
-  float true_power = 0.0;
-
   srand48(time(0));
   for (int i = 0; i < num_samples; ++i) {
-    inbuff[2*i]   = round(32767 * (cos(2 * M_PI * test_freq * i / num_samples) + drand48() * 2 * noise_amplitude - noise_amplitude));
-    inbuff[2*i+1] = round(32767 * (sin(2 * M_PI * test_freq * i / num_samples) + drand48() * 2 * noise_amplitude - noise_amplitude));
-    true_power += inbuff[2*i]*inbuff[2*i] + inbuff[2*i+1]*inbuff[2*i+1];
+    if (noise_amplitude != 0.0) {
+      inbuff[2*i]   = round(32767 * (cos(2 * M_PI * test_freq * i / num_samples) + drand48() * 2 * noise_amplitude - noise_amplitude));
+      inbuff[2*i+1] = round(32767 * (sin(2 * M_PI * test_freq * i / num_samples) + drand48() * 2 * noise_amplitude - noise_amplitude));
+    } else {
+      inbuff[2*i]   = round(32767 * (cos(2 * M_PI * test_freq * i / num_samples)));
+      inbuff[2*i+1] = round(32767 * (sin(2 * M_PI * test_freq * i / num_samples)));
+    }
   }
-  true_power = 10 * log10f(true_power / 2 / 32767 / 32767);
 
-  FreqEstimator fe0(num_samples, 2, false), fe1(num_samples * MULT1, 2, true), fe2(num_samples * MULT2, 2, true), fe3(num_samples * MULT3, 2, true), fe4(4096, 2, true), fe5(2048, 2, true), fe6(1024, 2, true);
+  FreqEstimator fe0(num_samples), fe1(num_samples * MULT1), fe2(num_samples * MULT2), fe3(num_samples * MULT3), fe4(4096), fe5(2048), fe6(1024);
 
-  float pwr;
-
-  std::cout  << "True Freq: " << test_freq << ", power: " << true_power << "\n";
-  std::cout  << "Est. Freq: " << num_samples * fe0.get(inbuff, num_samples, &pwr) << " without zero padding";
-  std::cout << ", power: " << pwr << "\n";
-  std::cout  << "Est. Freq: " << num_samples * fe1.get(inbuff, num_samples, &pwr) << " with " << MULT1 << " times zero padding";
-  std::cout << ", power: " << pwr << "\n";
-  std::cout  << "Est. Freq: " << num_samples * fe2.get(inbuff, num_samples, &pwr) << " with " << MULT2 << " times zero padding";
-  std::cout << ", power: " << pwr << "\n";
-  std::cout  << "Est. Freq: " << num_samples * fe3.get(inbuff, num_samples, &pwr) << " with " << MULT3 << " times zero padding";
-  std::cout << ", power: " << pwr << "\n";
-  std::cout  << "Est. Freq: " << num_samples * fe6.get(inbuff, num_samples, &pwr) << " with padding to 1024 samples";
-  std::cout << ", power: " << pwr << "\n";
-  std::cout  << "Est. Freq: " << num_samples * fe5.get(inbuff, num_samples, &pwr) << " with padding to 2048 samples";
-  std::cout << ", power: " << pwr << "\n";
-  std::cout  << "Est. Freq: " << num_samples * fe4.get(inbuff, num_samples, &pwr) << " with padding to 4096 samples";
-  std::cout << ", power: " << pwr << "\n";
+  std::cout  << "True Freq: " << test_freq << "\n";
+  std::cout  << "Est. Freq: " << num_samples * fe0.get(inbuff, num_samples) << " without zero padding\n";
+  std::cout  << "Est. Freq: " << num_samples * fe1.get(inbuff, num_samples) << " with " << MULT1 << " times zero padding\n";
+  std::cout  << "Est. Freq: " << num_samples * fe2.get(inbuff, num_samples) << " with " << MULT2 << " times zero padding\n";
+  std::cout  << "Est. Freq: " << num_samples * fe3.get(inbuff, num_samples) << " with " << MULT3 << " times zero padding\n";
+  std::cout  << "Est. Freq: " << num_samples * fe6.get(inbuff, num_samples) << " with padding to 1024 samples\n";
+  std::cout  << "Est. Freq: " << num_samples * fe5.get(inbuff, num_samples) << " with padding to 2048 samples\n";
+  std::cout  << "Est. Freq: " << num_samples * fe4.get(inbuff, num_samples) << " with padding to 4096 samples\n";
 
   fe0.generateWindowingCoefficients();
   fe1.generateWindowingCoefficients();
@@ -71,19 +63,12 @@ main (int argc, char *argv[]) {
   fe6.generateWindowingCoefficients();
 
   std::cout << " After Windowing" << std::endl;
-  std::cout  << "True Freq: " << test_freq << ", power: " << true_power << "\n";
-  std::cout  << "Est. Freq: " << num_samples * fe0.get(inbuff, num_samples, &pwr) << " without zero padding";
-  std::cout << ", power: " << pwr << "\n";
-  std::cout  << "Est. Freq: " << num_samples * fe1.get(inbuff, num_samples, &pwr) << " with " << MULT1 << " times zero padding";
-  std::cout << ", power: " << pwr << "\n";
-  std::cout  << "Est. Freq: " << num_samples * fe2.get(inbuff, num_samples, &pwr) << " with " << MULT2 << " times zero padding";
-  std::cout << ", power: " << pwr << "\n";
-  std::cout  << "Est. Freq: " << num_samples * fe3.get(inbuff, num_samples, &pwr) << " with " << MULT3 << " times zero padding";
-  std::cout << ", power: " << pwr << "\n";
-  std::cout  << "Est. Freq: " << num_samples * fe6.get(inbuff, num_samples, &pwr) << " with padding to 1024 samples";
-  std::cout << ", power: " << pwr << "\n";
-  std::cout  << "Est. Freq: " << num_samples * fe5.get(inbuff, num_samples, &pwr) << " with padding to 2048 samples";
-  std::cout << ", power: " << pwr << "\n";
-  std::cout  << "Est. Freq: " << num_samples * fe4.get(inbuff, num_samples, &pwr) << " with padding to 4096 samples";
-  std::cout << ", power: " << pwr << "\n";
+  std::cout  << "True Freq: " << test_freq << "\n";
+  std::cout  << "Est. Freq: " << num_samples * fe0.get(inbuff, num_samples) << " without zero padding\n";
+  std::cout  << "Est. Freq: " << num_samples * fe1.get(inbuff, num_samples) << " with " << MULT1 << " times zero padding\n";
+  std::cout  << "Est. Freq: " << num_samples * fe2.get(inbuff, num_samples) << " with " << MULT2 << " times zero padding\n";
+  std::cout  << "Est. Freq: " << num_samples * fe3.get(inbuff, num_samples) << " with " << MULT3 << " times zero padding\n";
+  std::cout  << "Est. Freq: " << num_samples * fe6.get(inbuff, num_samples) << " with padding to 1024 samples\n";
+  std::cout  << "Est. Freq: " << num_samples * fe5.get(inbuff, num_samples) << " with padding to 2048 samples\n";
+  std::cout  << "Est. Freq: " << num_samples * fe4.get(inbuff, num_samples) << " with padding to 4096 samples\n";
 }
