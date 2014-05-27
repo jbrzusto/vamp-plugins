@@ -25,7 +25,7 @@ PLUGIN_INSTALL_DIR = ~/.vamp
 
 # Edit this to list one .o file for each .cpp file in your plugin project
 #
-PLUGIN_CODE_OBJECTS = FindPulseFD.o FindPulseFDBatch.o FindPulseTD.o FindPulseTDBatch.o
+PLUGIN_CODE_OBJECTS = FindPulseFD.o FindPulseFDBatch.o FindPulseTD.o FindPulseTDBatch.o NewFindPulseFD.o
 
 # Edit this to the location of the Vamp plugin SDK, relative to your
 # project directory
@@ -34,8 +34,8 @@ VAMP_SDK_INCLUDE_DIR = /usr/include/
 VAMP_SDK_LIB_DIR = /usr/lib
 
 CXXFLAGS_PRODUCTION = -I$(VAMP_SDK_INCLUDE_DIR) -Wall -fPIC -O3 -ffast-math -fsingle-precision-constant -ftree-vectorize
-#CXXFLAGS_DEBUG = -I$(VAMP_SDK_INCLUDE_DIR) -Wall -fPIC -g3 -ffast-math -fsingle-precision-constant -ftree-vectorize
-CXXFLAGS_DEBUG = -I$(VAMP_SDK_INCLUDE_DIR) -Wall -g3
+CXXFLAGS_DEBUG = -I$(VAMP_SDK_INCLUDE_DIR) -Wall -fPIC -g3 -ffast-math -fsingle-precision-constant -ftree-vectorize
+
 
 CXXFLAGS = $(CXXFLAGS_DEBUG)
 ##CXXFLAGS = $(CXXFLAGS_PRODUCTION)
@@ -71,7 +71,13 @@ testFreqEstimator: testFreqEstimator.o FreqEstimator.o
 	$(CXX) -o $@ $^ -L/usr/local/lib -lfftw3f
 
 testKahanSum: KahanSum.h testKahanSum.cpp
-       g++ -o testKahanSum testKahanSum.cpp
+	g++ -$(CXXFLAGS) -o testKahanSum testKahanSum.cpp
+
+testPeakFinder: PeakFinder.h testPeakFinder.cpp SortedFifo.h
+	g++ $(CXXFLAGS) -o testPeakFinder testPeakFinder.cpp
+
+testDynamicQuantile: DynamicQuantile.h testDynamicQuantile.cpp
+	g++ $(CXXFLAGS) -o testDynamicQuantile testDynamicQuantile.cpp
 
 clean:
 	rm -f *.o
