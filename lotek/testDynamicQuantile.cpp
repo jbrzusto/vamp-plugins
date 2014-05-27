@@ -32,9 +32,10 @@ e.g. testDynamicQuantile 0.90 1000 0.8 100000\n";
   DynamicQuantile < float > dq (prob, n, overlap);
 
   int i;
+  std::cout << "Estimator#,NewValue,Quantile\n";
   for (i = 0; i < m; ++i) {
     float val = (float) drand48();
     dq(val);
-    std::cout << val << ',' << dq << std::endl;
+    std::cout << dq.current() << ',' << val << ',' << dq << std::endl;
   }
 }

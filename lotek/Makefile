@@ -33,8 +33,8 @@ PLUGIN_CODE_OBJECTS = FindPulseFD.o FindPulseFDBatch.o FindPulseTD.o FindPulseTD
 VAMP_SDK_INCLUDE_DIR = /usr/include/
 VAMP_SDK_LIB_DIR = /usr/lib
 
-CXXFLAGS_PRODUCTION = -I$(VAMP_SDK_INCLUDE_DIR) -Wall -fPIC -O3 -ffast-math -fsingle-precision-constant -ftree-vectorize
-CXXFLAGS_DEBUG = -I$(VAMP_SDK_INCLUDE_DIR) -Wall -fPIC -g3 -ffast-math -fsingle-precision-constant -ftree-vectorize
+CXXFLAGS_PRODUCTION = -std=c++0x -I$(VAMP_SDK_INCLUDE_DIR) -Wall -fPIC -O3 -ffast-math  -ftree-vectorize
+CXXFLAGS_DEBUG = -std=c++0x -I$(VAMP_SDK_INCLUDE_DIR) -Wall -fPIC -g3 -ffast-math  -ftree-vectorize
 
 
 CXXFLAGS = $(CXXFLAGS_DEBUG)
