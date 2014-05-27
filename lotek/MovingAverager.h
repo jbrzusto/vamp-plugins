@@ -9,6 +9,7 @@
 #define _MOVING_AVERAGER_H
 
 #include <boost/circular_buffer.hpp>
+#include "KahanSum.h"
 
 template < typename DATATYPE, typename AVGTYPE > 
 class MovingAverager {
@@ -50,7 +51,7 @@ class MovingAverager {
 
  protected:
   boost::circular_buffer < DATATYPE > buf;
-  AVGTYPE m_total;
+  KahanSum < AVGTYPE > m_total;
 };
 
 #endif //  _MOVING_AVERAGER_H
