@@ -36,7 +36,7 @@ class EdgeDetector {
     ma_count(win_size),
     ma_count_from(win_size),
     win(win_size),
-    ma_buff(win_size + 1),
+    ma_buff(2 * win_size + 1),
     dq(1.0 - max_prob, 10000),
     pk (win_size, true, true)
       {
@@ -51,10 +51,10 @@ class EdgeDetector {
       double ma_right = win.get_average();
       ma_buff.push_back(ma_right);
 
-      if (ma_buff.full()) {
+      if (ma_buff.size() > win_size) {
         // we have enough samples to have already buffered the average
         // for the left window, so subtract from the right window's average
-        double ma_left = ma_buff[0];
+        double ma_left = ma_buff[ma_buff.size() - win_size - 1];
         double diff = ma_right - ma_left;
         double posdiff = fabs(diff);
 
@@ -72,15 +72,19 @@ class EdgeDetector {
         // send the difference through the peak finder
         if (pk.process(diff)) {
           // a local min/max in the between-window difference was found.
+          // The peak finder finds a peak only after another win_size samples
+          // have been processed, so the moving averages on either side
+          // of the edge are at locations 0 and win_size of ma_buff
           // check whether it is large enough (in magnitude or probability)
           // to count as an edge
-          if (posdiff >= dq || posdiff >= min_diff) {
+          double peakdiff = right() - left();
+          double peakmag = fabs(peakdiff);
+
+          if (peakmag >= dq || peakmag >= min_diff) {
             // record the quantile
             last_quant = dq;
-            // record the average from the left window
-            left_ave = ma_left;
             // note whether this was a rising or falling edge
-            was_rising = diff > 0;
+            was_rising = peakdiff > 0;
             return true;
           }
         }
@@ -103,7 +107,7 @@ class EdgeDetector {
   TYPE left () {
     // return the mean in the left window
     // only valid immediately after a call to operator() returns true
-    return left_ave;
+    return ma_buff[0];
   };
 
   TYPE right () {
