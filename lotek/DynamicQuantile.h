@@ -32,6 +32,13 @@ using namespace boost::accumulators;
 // 1, the more 'smooth' the switchover, but the larger the storage and
 // (especially) processing costs.
 //
+// CHECKME: it seems we could instead maintain a single p_square_quantile,
+// but add a function to drop the sample count by 1, making appropriate
+// adjustments to marker positions etc.  We'd do this each time we
+// added a new sample.  Then, the impact of each new sample would
+// be equivalent, once the p_square_quantile had reached its maximum
+// size (the latter being a new parameter to the constructor).
+//
 // Storage: O(1 / (1 - overlap))
 // Complexity: O(1 / (1 - overlap)) per sample
 
