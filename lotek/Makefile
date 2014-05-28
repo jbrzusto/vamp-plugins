@@ -81,6 +81,9 @@ testDynamicQuantile: DynamicQuantile.h testDynamicQuantile.cpp
 testEdgeDetector: EdgeDetector.h testEdgeDetector.cpp
 	g++ $(CXXFLAGS) -o testEdgeDetector testEdgeDetector.cpp
 
+testPulseDetector: PulseDetector.h testPulseDetector.cpp 
+	g++ $(CXXFLAGS) -o testPulseDetector testPulseDetector.cpp
+
 clean:
 	rm -f *.o
 
