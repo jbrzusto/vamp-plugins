@@ -1,6 +1,6 @@
 /* -*- mode: c++ -*- */
 /*
-    Copyright 2011 John Brzustowski
+    Copyright 2011-2014 John Brzustowski
 
     Licence: GPL version 2 or later
 */
