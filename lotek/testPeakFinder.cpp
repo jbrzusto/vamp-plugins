@@ -12,9 +12,11 @@ main (int argc, char *argv[])
 {
   if (argc < 3) {
     std::cout << 
-"Usage: testPeakFinder winsize numsamples\n\
-look for local strict maxima (over a window of size 2*winsize + 1)\
-in a stream of numsamples random floating point numbers in [0, 1].\n";
+"Usage: testPeakFinder WINSIZE NUMSAMPLES\n\
+look for local strict maxima (over a window of size 2*WINSIZE + 1)\n\
+in a stream of NUMSAMPLES random floating point numbers in [0, 1].\n\
+Specify NUMSAMPLES as 0 to read samples from stdin.\n\
+";
     exit(1);
   }
     
@@ -26,15 +28,15 @@ in a stream of numsamples random floating point numbers in [0, 1].\n";
   int n = atoi(argv[2]);
 
   int i;
-  for (i = 0; i < n; ++i) {
-    float val = (float) drand48();
-    bool peak = pf.process(val);
-    if (i < m)
-      std::cout << "  " << pf[i] << std::endl;
-    else if (pf.full())
-      std::cout << (peak ? (pf.peak_was_max() ? "^ " : "v ") : "  ") << pf[m] << std::endl;
+  for (i = 0; n == 0 || i < n; ++i) {
+    float val;
+    if (n == 0) {
+      std::cin >> val;
+    } else {
+      val = (float) drand48();
+      std::cout << val << std::endl;
+    }
+    if (pf.process(val))
+      std::cout << "Peak (back " << m << ") " <<  (pf.peak_was_max() ? "^ " : "v ") << std::endl;
   }
-  for (i = 1; i <= m; ++i)
-    std::cout << "  " << pf[m + i] << std::endl;
-
 }
