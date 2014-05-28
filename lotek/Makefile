@@ -34,8 +34,7 @@ VAMP_SDK_INCLUDE_DIR = /usr/include/
 VAMP_SDK_LIB_DIR = /usr/lib
 
 CXXFLAGS_PRODUCTION = -std=c++0x -I$(VAMP_SDK_INCLUDE_DIR) -Wall -fPIC -O3 -ffast-math  -ftree-vectorize
-CXXFLAGS_DEBUG = -std=c++0x -I$(VAMP_SDK_INCLUDE_DIR) -Wall -fPIC -g3 -ffast-math  -ftree-vectorize
-
+CXXFLAGS_DEBUG = -std=c++0x -I$(VAMP_SDK_INCLUDE_DIR) -Wall -fPIC -g3 
 
 CXXFLAGS = $(CXXFLAGS_DEBUG)
 ##CXXFLAGS = $(CXXFLAGS_PRODUCTION)
@@ -78,6 +77,9 @@ testPeakFinder: PeakFinder.h testPeakFinder.cpp SortedFifo.h
 
 testDynamicQuantile: DynamicQuantile.h testDynamicQuantile.cpp
 	g++ $(CXXFLAGS) -o testDynamicQuantile testDynamicQuantile.cpp
+
+testEdgeDetector: EdgeDetector.h testEdgeDetector.cpp
+	g++ $(CXXFLAGS) -o testEdgeDetector testEdgeDetector.cpp
 
 clean:
 	rm -f *.o
