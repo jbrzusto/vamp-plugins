@@ -21,7 +21,7 @@ in a stream of numsamples random floating point numbers in [0, 1].\n";
   srand48(time(0));
 
   int m = atoi(argv[1]);
-  PeakFinder < float > pf(m);
+  PeakFinder < float > pf(m, true, true);
 
   int n = atoi(argv[2]);
 
@@ -32,7 +32,7 @@ in a stream of numsamples random floating point numbers in [0, 1].\n";
     if (i < m)
       std::cout << "  " << pf[i] << std::endl;
     else if (pf.full())
-      std::cout << (peak ? "^ " : "  ") << pf[m] << std::endl;
+      std::cout << (peak ? (pf.peak_was_max() ? "^ " : "v ") : "  ") << pf[m] << std::endl;
   }
   for (i = 1; i <= m; ++i)
     std::cout << "  " << pf[m + i] << std::endl;
