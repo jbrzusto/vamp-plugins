@@ -421,8 +421,7 @@ FindPulseTD::process(const float *const *inputBuffers,
         
         float pwr = 0.0;
         for (unsigned short ch = 0; ch < m_channels; ++ch) {
-            //float avg = m_dcma[ch].get_average();
-                        float avg = 0.0;
+            float avg = m_dcma[ch].get_average();
             float dc_corrected = inputBuffers[ch][i] - avg;
             float single_pwr = dc_corrected * dc_corrected;
             m_sample_buf[ch].push_back(dc_corrected);
