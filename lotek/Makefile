@@ -25,7 +25,7 @@ PLUGIN_INSTALL_DIR = ~/.vamp
 
 # Edit this to list one .o file for each .cpp file in your plugin project
 #
-PLUGIN_CODE_OBJECTS = FindPulseFD.o FindPulseFDBatch.o FindPulseTD.o FindPulseTDBatch.o NewFindPulseFD.o
+PLUGIN_CODE_OBJECTS = FindPulseFD.o FindPulseFDBatch.o FindPulseTD.o FindPulseTDBatch.o NewFindPulse.o
 
 # Edit this to the location of the Vamp plugin SDK, relative to your
 # project directory
@@ -61,6 +61,8 @@ FindPulse.o: FindPulse.h MovingAverager.h
 FindPulseBatch.o: FindPulseBatch.h MovingAverager.h
 
 AveragePower.o: AveragePower.h MovingAverager.h
+
+NewFindPulse.o: NewFindPulse.h SortedFifo.h DynamicQuantile.h PeakFinder.h MovingAverager.h FreqEstimator.h EdgeDetector.h PulseDetector.h KahanSum.h
 
 FreqEstimator.o: FreqEstimator.h
 

@@ -19,14 +19,15 @@
 // are available immediately after a pulse is detected.
 
 
-typedef boost::circular_buffer < float > ::const_array_range array_range_t;
 
 template < typename TYPE >
 
 class PulseDetector {
  public:
+
+  typedef typename boost::circular_buffer < TYPE > ::const_array_range array_range_t;
   
-  PulseDetector(size_t min_width, size_t max_width, TYPE min_diff, double max_prob) :
+  PulseDetector(size_t min_width=0, size_t max_width=0, TYPE min_diff=0, double max_prob=0) :
     min_width(min_width),
     max_width(max_width),
     min_diff(min_diff),
@@ -56,13 +57,15 @@ class PulseDetector {
           // found a rising edge; cancel any started pulse and start a new one
         awaiting_fall = true;
         samples_since_rise = 0;
+        left_bg = ej.left();
       } else if (awaiting_fall) {
         // we found the falling edge we were waiting for
         awaiting_fall = false;
         if (samples_since_rise <= max_width && samples_since_rise >= min_width) {
           last_width = samples_since_rise;
           last_location = last_width + 2 * min_width - 1;
-          
+          right_bg = ej.right();
+
           // set up (pointer, length) pairs to 1 or 2 segments in
           // the ring buffer containing the samples for this pulse
           
@@ -109,6 +112,12 @@ class PulseDetector {
     return last_width;
   };
 
+  TYPE bg () {
+    // background value; mean of means in two background windows on either
+    // side of pulse.  Valid only immediately after a call to operator() returns true.
+    return (left_bg + right_bg) / 2.0;
+  };
+
   typename boost::circular_buffer < TYPE > :: const_array_range pulse_array1 () {
     return array1;
   };
@@ -128,6 +137,8 @@ class PulseDetector {
   size_t samples_since_rise; // number of samples elapsed since a rising edge was detected
   size_t last_location;
   size_t last_width;
+  TYPE left_bg; // value of mean in left background window
+  TYPE right_bg; // value of mean in right background window
   array_range_t array1;
   array_range_t array2;
 };

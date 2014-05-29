@@ -35,18 +35,22 @@ only be detected when it is the best edge for N samples in either direction.\n";
   int m          = atoi(argv[5]);
 
   PulseDetector < float > pd (min_width, max_width, mindiff, maxprob);
+  unsigned long long count = 0;
 
   int i;
   for (i = 0; m == 0 || i < m; ++i) {
     float val;
     if (m == 0) {
       std::cin >> val;
+      if (std::cin.eof())
+        break;
+      ++count;
     } else {
       val = (float) drand48();
       std::cout << val << std::endl;
     }
     if (pd(val)) {
-      std::cout << "Pulse: back = " << pd.location() << ", width = " << pd.width() << ", First Sample: ";
+      std::cout << count - pd.location() << ',' << pd.width() << ',';
       auto a1 = pd.pulse_array1();
       auto a2 = pd.pulse_array2();
       if (a1.first) {
@@ -54,7 +58,7 @@ only be detected when it is the best edge for N samples in either direction.\n";
       } else {
         std::cout << * a2.first;
       }
-      std::cout << ", Last Sample: ";
+      std::cout << ',';
       if (a2.first) {
         std::cout << * (a2.first + (a2.second - 1));
       } else {
