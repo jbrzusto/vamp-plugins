@@ -48,10 +48,10 @@
 #include "NewFindPulse.h"
 
 static Vamp::PluginAdapter<FindPulseFD> findPulseFDAdapter;
-static Vamp::PluginAdapter<FindPulseFDBatch> findPulseFDBatchAdapter;
 static Vamp::PluginAdapter<FindPulseTD> findPulseTDAdapter;
-static Vamp::PluginAdapter<FindPulseTDBatch> findPulseTDBatchAdapter;
 static Vamp::PluginAdapter<NewFindPulse> newFindPulseAdapter;
+//static Vamp::PluginAdapter<FindPulseFDBatch> findPulseFDBatchAdapter;
+//static Vamp::PluginAdapter<FindPulseTDBatch> findPulseTDBatchAdapter;
 const VampPluginDescriptor *vampGetPluginDescriptor(unsigned int version,
                                                     unsigned int index)
 {
@@ -59,10 +59,10 @@ const VampPluginDescriptor *vampGetPluginDescriptor(unsigned int version,
 
     switch (index) {
     case  0: return findPulseFDAdapter.getDescriptor();
-    case  1: return findPulseFDBatchAdapter.getDescriptor();
-    case  2: return findPulseTDAdapter.getDescriptor();
-    case  3: return findPulseTDBatchAdapter.getDescriptor();
-    case  4: return newFindPulseAdapter.getDescriptor();
+    case  1: return findPulseTDAdapter.getDescriptor();
+    case  2: return newFindPulseAdapter.getDescriptor();
+        //    case  3: return findPulseTDBatchAdapter.getDescriptor();
+        //    case  4: return findPulseFDBatchAdapter.getDescriptor();
     default: return 0;
     }
 }

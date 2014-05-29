@@ -33,9 +33,8 @@ class PulseFinder {
     m_noise_width(m),
     m_pulse_sep(k),
     m_back(m+n),
-    m_div_signal (n),
-    m_div_noise (2 * m),
-    m_mult_SNR (2 * m / (DATATYPE) n),
+    m_signal_scale (1.0 / n),
+    m_noise_scale (1.0 / (2 * m)),
     m_sample_buf (n + 2*m),
     m_probe_signal_buf (2 * k + 1),
     m_probe_noise_buf (2 * k + 1),
@@ -43,38 +42,33 @@ class PulseFinder {
     m_noise (0),
     m_noise_floor(2.511886432E-10 * 2 * m),
     m_max_probe_index (-1),
-    m_got_pulse(false),
     m_recalc_countdown(recalc_interval),
     m_recalc_interval(recalc_interval)
   {
   };
 
-  bool got_pulse () {  // have we seen a pulse? True if the probe value was maximum at the centre of the k-sized window.
-    return m_got_pulse;
-  }
-
   DATATYPE pulse_signal () { // the signal value for the pulse; only valid if got_pulse() is true
-    return m_pulse_signal / m_div_signal;
+    return m_probe_signal_buf[m_pulse_sep] * m_signal_scale;
   }
 
   DATATYPE pulse_noise () { // the signal value for the pulse; only valid if got_pulse() is true
-    return m_pulse_noise / m_div_noise;
+    return m_probe_noise_buf[m_pulse_sep] * m_noise_scale;
   }
 
   DATATYPE pulse_SNR () { // the SNR for the pulse; only valid if got_pulse() is true
-    return SNR(m_pulse_signal, m_pulse_noise);
+    return SNR(pulse_signal(), pulse_noise());
   }
 
   inline DATATYPE SNR(DATATYPE signal, DATATYPE noise) const {
     // signal to noise ratio; note that noise is never allowed to reach 0
     // by logic in process()
-    return (signal * m_div_noise / m_div_signal - noise) / noise;
+    return (signal - noise) / noise;
   };
 
-  void process(DATATYPE d) { // process a value from the data stream
-    m_got_pulse = false;
+  bool process(DATATYPE d) { // process a value from the data stream
+    bool got_pulse = false;
 
-    if (m_sample_buf.full())
+    if (m_sample_buf.full() && m_sample_buf.size())
       // the first sample is moving from the left noise zone out of the probe window
       m_noise -= m_sample_buf[0];
 
@@ -152,11 +146,10 @@ class PulseFinder {
       if (m_max_probe_index == m_pulse_sep) {
 	// the central value in the probe buffer is the maximum,
 	// so indicate we have a pulse.
-	m_got_pulse = true;
-	m_pulse_signal = m_probe_signal_buf[m_max_probe_index];
-	m_pulse_noise = m_probe_noise_buf[m_max_probe_index];
+	got_pulse = true;
       }
     }
+    return got_pulse;
   }
       
 protected:
@@ -165,9 +158,8 @@ protected:
   int m_noise_width;
   int m_pulse_sep;
   int m_back;
-  DATATYPE m_div_signal;
-  DATATYPE m_div_noise;
-  DATATYPE m_mult_SNR;
+  DATATYPE m_signal_scale;
+  DATATYPE m_noise_scale;
   boost::circular_buffer < DATATYPE > m_sample_buf;
   boost::circular_buffer < DATATYPE > m_probe_signal_buf;
   boost::circular_buffer < DATATYPE > m_probe_noise_buf;
@@ -176,9 +168,6 @@ protected:
   DATATYPE m_noise_floor;
   int m_max_probe_index;
   DATATYPE m_max_probe_SNR;
-  bool m_got_pulse;
-  DATATYPE m_pulse_signal;
-  DATATYPE m_pulse_noise;
   int m_recalc_countdown;
   int m_recalc_interval;
 };
