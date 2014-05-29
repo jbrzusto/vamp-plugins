@@ -47,7 +47,7 @@
 
 #include <boost/circular_buffer.hpp>
 #include "vamp-sdk/Plugin.h"
-#include "PulseFinder.h"
+#include "ProbPulseFinder.h"
 #include "MovingAverager.h"
 #include <complex>
 #include <fftw3.h>
@@ -109,7 +109,7 @@ protected:
     // parameters
     float m_plen;        // length of pulse we're trying to detect, in ms
     int m_plen_in_samples; // length of pulse, measured in samples
-    float m_min_pulse_SNR; // minimum pulse power to be accepted (linear units)
+    float m_min_pulse_z; // minimum pulse sig-noise z score
     int m_noise_win_size; // size of noise window on each side of pulse, in multiples of pulse length
     int m_min_pulse_sep; // minimum separation between pulses, in multiples of pulse length
     float m_min_freq;  // only accept pulses from bins whose centre frequency is at least this
@@ -117,7 +117,7 @@ protected:
 
     // parameter defaults
     static float m_default_plen;
-    static float m_default_min_pulse_SNR_dB;
+    static float m_default_min_pulse_z;
     static int   m_default_noise_win_size;
     static int   m_default_min_pulse_sep;
     static float m_default_min_freq;
@@ -139,7 +139,7 @@ protected:
 
     int m_num_samples;  // number of samples processed
 
-    PulseFinder < double > m_pulse_finder;
+    ProbPulseFinder < double > m_pulse_finder;
 
     MovingAverager < float, float > m_dcma[2]; // moving averager for removing DC on each channel
 

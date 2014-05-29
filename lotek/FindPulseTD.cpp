@@ -145,7 +145,7 @@ FindPulseTD::FindPulseTD(float inputSampleRate) :
     m_stepSize(0),
     m_blockSize(0),
     m_plen(m_default_plen),
-    m_min_pulse_SNR(exp10(m_default_min_pulse_SNR_dB / 10.0)),
+    m_min_pulse_z(m_default_min_pulse_z),
     m_noise_win_size (m_default_noise_win_size),
     m_min_pulse_sep (m_default_min_pulse_sep),
     m_min_freq (m_default_min_freq),
@@ -221,7 +221,7 @@ FindPulseTD::initialise(size_t channels, size_t stepSize, size_t blockSize)
 
     m_last_timestamp = Vamp::RealTime(-1, 0);
 
-    m_pulse_finder = PulseFinder < double > (131072, m_pf_size, m_pf_size * m_noise_win_size, m_pf_size * m_min_pulse_sep);
+    m_pulse_finder = ProbPulseFinder < double > (131072, m_pf_size, m_pf_size * m_noise_win_size, m_pf_size * m_min_pulse_sep);
 
     // allocate time-domain sample buffers for each channel which are large enough to contain
     // the samples for a pulse when it has been detected.  Because pulses are not
@@ -285,13 +285,13 @@ FindPulseTD::getParameterDescriptors() const
     d.isQuantized = false;
     list.push_back(d);
 
-    d.identifier = "minsnr";
-    d.name = "Minimum Pulse SNR (unit: dB)";
-    d.description = "Minimum pulse signal-to-noise ratio";
-    d.unit = "dB";
+    d.identifier = "minz";
+    d.name = "Minimum Pulse Z score";
+    d.description = "Minimum pulse signal-noise z-score";
+    d.unit = "(none)";
     d.minValue = 0;
-    d.maxValue = 96;
-    d.defaultValue = FindPulseTD::m_default_min_pulse_SNR_dB;
+    d.maxValue = 20;
+    d.defaultValue = FindPulseTD::m_default_min_pulse_z;
     d.isQuantized = false;
     list.push_back(d);
 
@@ -345,8 +345,8 @@ FindPulseTD::getParameter(string id) const
 {
     if (id == "plen") {
         return m_plen;
-    } else if (id == "minsnr") {
-        return 10 * log10(m_min_pulse_SNR);
+    } else if (id == "minz") {
+        return m_min_pulse_z;
     } else if (id == "noisesize") {
         return m_noise_win_size;
     } else if (id == "pulsesep") {
@@ -364,9 +364,9 @@ FindPulseTD::setParameter(string id, float value)
 {
     if (id == "plen") {
         FindPulseTD::m_default_plen = m_plen = value;
-    } else if (id == "minsnr") {
-        FindPulseTD::m_default_min_pulse_SNR_dB =  value;
-        m_min_pulse_SNR = exp10(value / 10.0);
+    } else if (id == "minz") {
+        FindPulseTD::m_default_min_pulse_z =  value;
+        m_min_pulse_z = value;
     } else if (id == "noisesize") {
         FindPulseTD::m_default_noise_win_size = m_noise_win_size = value;
     } else if (id == "pulsesep") {
@@ -431,17 +431,7 @@ FindPulseTD::process(const float *const *inputBuffers,
 
         m_pulse_finder.process(pwr);
 
-        if (m_pulse_finder.got_pulse() && m_pulse_finder.pulse_SNR() >= m_min_pulse_SNR) {
-            // dump the feature
-            Feature feature;
-            feature.hasTimestamp = true;
-            feature.hasDuration = false;
-            
-            // The pulse timestamp is taken to be the centre of the pulse
-            
-            feature.timestamp = timestamp +
-                Vamp::RealTime::frame2RealTime((signed int) i - ((m_noise_win_size + m_min_pulse_sep) * m_pf_size + m_pf_size / 2), (size_t) m_inputSampleRate);                    
-            
+        if (m_pulse_finder.got_pulse() && m_pulse_finder.pulse_Z() >= m_min_pulse_z) {
             // compute a finer estimate of pulse offset frequency
             
             for (unsigned short ch = 0; ch < m_channels; ++ch ) {
@@ -539,28 +529,46 @@ FindPulseTD::process(const float *const *inputBuffers,
             std::stringstream ss;
             ss.precision(5);
                 
-            ss << " freq: " << (bin_est * ((float) m_inputSampleRate / m_plen_in_samples)) / 1000
-               << " kHz; SNR: " << 10 * log10(m_pulse_finder.pulse_SNR())
-               << " dB; sig: " << 10 * log10(m_pulse_finder.pulse_signal() * m_probe_scale)
-               << " dB; noise: " << 10 * log10(m_pulse_finder.pulse_noise() * m_probe_scale)
-               << " dB; phaseI: " << phase[0] * 180 /  M_PI
-               << " ; phaseQ: " << phase[1] * 180 / M_PI
-               << " ;";
+            double freq = (bin_est * ((float) m_inputSampleRate / m_plen_in_samples)) / 1000;
+
+            if (freq <= m_max_freq && freq >= m_min_freq) {
+                // dump the feature
+                Feature feature;
+                feature.hasTimestamp = true;
+                feature.hasDuration = false;
                 
-            ss.precision(2);
-            if (m_last_timestamp.sec >= 0) {
-                Vamp::RealTime gap =  feature.timestamp - m_last_timestamp;
-                if (gap.sec < 1) {
-                    ss.precision(0);
-                    ss << "; Gap: " << gap.msec() << " ms";
-                } else {
-                    ss.precision(1);
-                    ss << "; Gap: " << gap.sec + (double) gap.msec()/1000 << " s";
+                // The pulse timestamp is taken to be the centre of the pulse
+            
+                feature.timestamp = timestamp +
+                    Vamp::RealTime::frame2RealTime((signed int) i - ((m_noise_win_size + m_min_pulse_sep) * m_pf_size + m_pf_size / 2), (size_t) m_inputSampleRate);                    
+            
+
+            
+                double noise = m_pulse_finder.pulse_noise();
+
+                ss << " freq: " << (bin_est * ((float) m_inputSampleRate / m_plen_in_samples)) / 1000
+                   << " kHz; Z: " << m_pulse_finder.pulse_Z()
+                   << " ; sig: " << 10 * log10(m_pulse_finder.pulse_signal() - noise)
+                   << " dB; noise: " << 10 * log10(noise)
+                   << " dB; phaseI: " << phase[0] * 180 /  M_PI
+                   << " ; phaseQ: " << phase[1] * 180 / M_PI
+                   << " ;";
+                
+                ss.precision(2);
+                if (m_last_timestamp.sec >= 0) {
+                    Vamp::RealTime gap =  feature.timestamp - m_last_timestamp;
+                    if (gap.sec < 1) {
+                        ss.precision(0);
+                        ss << "; Gap: " << gap.msec() << " ms";
+                    } else {
+                        ss.precision(1);
+                        ss << "; Gap: " << gap.sec + (double) gap.msec()/1000 << " s";
+                    }
                 }
+                m_last_timestamp = feature.timestamp;
+                feature.label = ss.str();
+                returnFeatures[0].push_back(feature);
             }
-            m_last_timestamp = feature.timestamp;
-            feature.label = ss.str();
-            returnFeatures[0].push_back(feature);
         }
     }
     return returnFeatures;
@@ -573,7 +581,7 @@ FindPulseTD::getRemainingFeatures()
 }
 
 float FindPulseTD::m_default_plen = 2.5; // milliseconds
-float FindPulseTD::m_default_min_pulse_SNR_dB = 5; // dB
+float FindPulseTD::m_default_min_pulse_z = 3; // no units
 int FindPulseTD::m_default_noise_win_size = 5; // pulse lengths
 int FindPulseTD::m_default_min_pulse_sep = 1; //pulse lengths
 float FindPulseTD::m_default_min_freq = 2.0; // 2 kHz

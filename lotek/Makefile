@@ -52,7 +52,7 @@ FindPulseFD.o: FindPulseFD.h PulseFinder.h
 
 FindPulseFDBatch.o: FindPulseFDBatch.h PulseFinder.h
 
-FindPulseTD.o: FindPulseFD.h PulseFinder.h
+FindPulseTD.o: FindPulseFD.h ProbPulseFinder.h 
 
 FindPulseTDBatch.o: FindPulseTDBatch.h PulseFinder.h
 
