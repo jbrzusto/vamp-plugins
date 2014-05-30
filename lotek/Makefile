@@ -86,6 +86,13 @@ testEdgeDetector: EdgeDetector.h testEdgeDetector.cpp
 testPulseDetector: PulseDetector.h testPulseDetector.cpp 
 	g++ $(CXXFLAGS) -o testPulseDetector testPulseDetector.cpp
 
+testAccordion: Accordion.h testAccordion.cpp
+	g++ $(CXXFLAGS) -o testAccordion testAccordion.cpp
+
+testSlidingSpectrum: SlidingSpectrum.h testSlidingSpectrum.cpp
+	g++ $(CXXFLAGS) -o testSlidingSpectrum testSlidingSpectrum.cpp -lfftw3f
+
+
 clean:
 	rm -f *.o
 
