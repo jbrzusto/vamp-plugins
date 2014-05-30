@@ -62,7 +62,7 @@ class DynamicQuantile {
     questors.push_back (quant_est(quantile_probability = prob));
   };
 
-  void operator() (TYPE d) { // process a value from the data stream
+  void operator() (const TYPE & d) { // process a value from the data stream
     if (rot_count == m) {
       // it's time to rotate estimators, or at least to start a fresh one
       rot_count = 0;

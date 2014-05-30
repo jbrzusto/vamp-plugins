@@ -5,34 +5,28 @@
     Licence: GPL version 2 or later
 */
 
-#ifndef _PULSE_DETECTOR_H
-#define _PULSE_DETECTOR_H
+#ifndef _FIXED_PULSE_DETECTOR_H
+#define _FIXED_PULSE_DETECTOR_H
 
 #include "EdgeDetector.h"
 
-// PulseDetector: find pulses in a data stream.  A pulse is a rising
-// edge, followed by a falling edge within some prescribed time
-// interval, with no intervening rising or falling edges.  Edges are
-// detected by both minimum magnitude and maximum probability.
-// Consecutive pulses are only be detected when separated by at least
-// the shortest pulse width.  Location, width, and contained samples
-// are available immediately after a pulse is detected.
-
-
+// FixedPulseDetector: find pulses of fixed width in a data stream.
+// a pulse is a block of 'width' consecutive samples whose mean is
+// significantly (in magnitude or probability) higher than the mean
+// of the immediately adjacent blocks of the same width.
 
 template < typename TYPE >
 
-class PulseDetector {
+class FixedPulseDetector {
  public:
 
   typedef typename boost::circular_buffer < TYPE > ::const_array_range array_range_t;
   
-  PulseDetector(size_t min_width=0, size_t max_width=0, TYPE min_diff=0, double max_prob=0) :
-    min_width(min_width),
-    max_width(max_width),
+  FixedPulseDetector(size_t width=0, TYPE min_diff=0, double max_prob=0) :
+    width(min_width),
     min_diff(min_diff),
     max_prob(max_prob),
-    buff(max_width + 2 * min_width), 
+    buff(3 * min_width), 
     ej(min_width, min_diff, max_prob),
     awaiting_fall(false),
     last_location(0),
@@ -143,4 +137,4 @@ class PulseDetector {
   array_range_t array2;
 };
 
-#endif //  _PULSE_DETECTOR_H
+#endif //  _FIXED_PULSE_DETECTOR_H

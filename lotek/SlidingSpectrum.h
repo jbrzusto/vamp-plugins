@@ -92,7 +92,7 @@ public:
         fftwf_free(output);
     };
 
-    bool operator () (std::complex < float >  &d) {
+    bool operator () (const std::complex < float >  &d) {
         // process a sample; return true if new FFT output is available
         if (acc (d)) {
 
@@ -160,7 +160,7 @@ protected:
     void generateHammingWindow()
     {
         // generate a Hamming window of size N in float array window, 
-        // Return sums and sums of squares of window coefficients in win_sum and win_sumsq.
+        // Return sums and sums of squares of window coefficients in win_sum and win_sumsq for later power estimation
 
         window = std::vector < float > (win_size);
         win_sum = win_sumsq = 0.0;

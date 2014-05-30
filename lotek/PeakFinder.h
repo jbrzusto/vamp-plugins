@@ -38,7 +38,7 @@ class PeakFinder {
     return buf[n];
   };
 
-  bool operator () (TYPE d) { // process a value from the data stream
+  bool operator () (const TYPE & d) { // process a value from the data stream
     if (buf.push_back(d)) {
       TYPE mid = buf[n];
       if (find_max) {

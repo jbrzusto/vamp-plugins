@@ -44,11 +44,11 @@ only be detected when it is the best edge for N samples in either direction.\n";
       std::cin >> val;
       if (std::cin.eof())
         break;
-      ++count;
     } else {
       val = (float) drand48();
       std::cout << val << std::endl;
     }
+    ++count;
     if (pd(val)) {
       std::cout << count - pd.location() << ',' << pd.width() << ',';
       auto a1 = pd.pulse_array1();

@@ -30,9 +30,9 @@ template < typename TYPE >
 class FixedPulseDetector {
 public:
   
-  FixedPulseDetector(size_t width, TYPE min_diff, double max_prob) :
+  FixedPulseDetector(size_t width, TYPE min_SNR, double max_prob) :
     width(width),
-    min_diff(min_diff),
+    min_SNR(min_SNR),
     max_prob(max_prob),
     min_needed(2 * width + 1),
     ma_count(width),
@@ -44,7 +44,7 @@ public:
   {
   };
   
-  bool operator() (TYPE d) { 
+  bool operator() (const TYPE & d) { 
     // process a value from the data stream; return true if a pulse was detected
     if (win(d)) {
       // add this average to our buffer
@@ -80,10 +80,9 @@ public:
           // a local max in the between-window difference was found.
           // Check whether it is large enough (in magnitude or
           // probability) to count as a pulse
-          double peakdiff = pk;
 
-          was_big = peakdiff >= min_diff;
-          was_unlikely = peakdiff >= dq;
+          was_unlikely = ((double) pk >= dq);
+          was_big = SNR() >= min_SNR;
 
           if (was_big || was_unlikely) {
             // record the quantile
@@ -106,6 +105,18 @@ public:
     // return the mean of the left and right background windows
     // only valid immediately after a call to operator() returns true
     return (ma_buff[0] + ma_buff[2 * width]) / 2.0;
+  };
+
+  double SNR () {
+    // return the mean of the left and right background windows
+    // only valid immediately after a call to operator() returns true
+    double bkg = bkgd();
+    if (bkg <= 0)
+      bkg = 2.5118864E-10; // -96 dB unlikely case, but we protect against it anyway
+    double sig = signal();
+    if (sig < bkg)
+      return 0.0;
+    return (sig - bkg) / bkg; // or should we just do sig / bkg?
   };
 
   bool big () {
@@ -134,7 +145,7 @@ public:
 
 protected:
   size_t width;
-  TYPE min_diff;
+  TYPE min_SNR;
   double max_prob;
   size_t min_needed;
   size_t ma_count;

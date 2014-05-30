@@ -31,7 +31,7 @@ class MovingAverager {
     return m_total / buf.size();
   };
 
-  bool operator() (DATATYPE d) { // process a value from the data stream
+  bool operator() (const DATATYPE & d) { // process a value from the data stream
     if (buf.full())
       m_total -= buf.front();
     buf.push_back(d);
