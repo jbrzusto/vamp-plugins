@@ -83,11 +83,17 @@ testDynamicQuantile: DynamicQuantile.h testDynamicQuantile.cpp
 testEdgeDetector: EdgeDetector.h testEdgeDetector.cpp
 	g++ $(CXXFLAGS) -o testEdgeDetector testEdgeDetector.cpp
 
-testPulseDetector: PulseDetector.h testPulseDetector.cpp 
-	g++ $(CXXFLAGS) -o testPulseDetector testPulseDetector.cpp
+testVariablePulseDetector: VariablePulseDetector.h testVariablePulseDetector.cpp 
+	g++ $(CXXFLAGS) -o testVariablePulseDetector testVariablePulseDetector.cpp
+
+testFixedPulseDetector: FixedPulseDetector.h testFixedPulseDetector.cpp 
+	g++ $(CXXFLAGS) -o testFixedPulseDetector testFixedPulseDetector.cpp
 
 testAccordion: Accordion.h testAccordion.cpp
 	g++ $(CXXFLAGS) -o testAccordion testAccordion.cpp
+
+testMovingAverager: MovingAverager.h testMovingAverager.cpp
+	g++ $(CXXFLAGS) -o testMovingAverager testMovingAverager.cpp
 
 testSlidingSpectrum: SlidingSpectrum.h testSlidingSpectrum.cpp
 	g++ $(CXXFLAGS) -o testSlidingSpectrum testSlidingSpectrum.cpp -lfftw3f

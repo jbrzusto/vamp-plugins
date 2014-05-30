@@ -1,4 +1,4 @@
-#include "PeakFinder.h"
+#include "MovingAverager.h"
 #include <iostream>
 #include <cstdio>
 #include <stdint.h>
@@ -10,10 +10,10 @@
 int
 main (int argc, char *argv[])
 {
-  if (argc < 3) {
+  if (argc != 3) {
     std::cout << 
-"Usage: testPeakFinder WINSIZE NUMSAMPLES\n\
-look for local strict maxima (over a window of size 2*WINSIZE + 1)\n\
+"Usage: testMovingAverager WINSIZE NUMSAMPLES\n\
+calculate a running moving aveerage using a window of size WINSIZE\n\
 in a stream of NUMSAMPLES random floating point numbers in [0, 1].\n\
 Specify NUMSAMPLES as 0 to read samples from stdin.\n\
 ";
@@ -23,7 +23,7 @@ Specify NUMSAMPLES as 0 to read samples from stdin.\n\
   srand48(time(0));
 
   int m = atoi(argv[1]);
-  PeakFinder < float > pf(m, true, true);
+  MovingAverager < float, double > ma(m);
 
   int n = atoi(argv[2]);
 
@@ -36,7 +36,7 @@ Specify NUMSAMPLES as 0 to read samples from stdin.\n\
       val = (float) drand48();
       std::cout << val << std::endl;
     }
-    if (pf(val))
-      std::cout << "Peak (back " << m << ") " <<  (pf ? "^ " : "v ") << " = " << (double) pf << std::endl;
+    if (ma(val))
+      std::cout << "av: " << ma << std::endl;
   }
 }

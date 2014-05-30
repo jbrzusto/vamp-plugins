@@ -34,11 +34,11 @@ class PeakFinder {
   {
   };
 
-  TYPE peak () { // the value of peak; only valid if the most recent call to process returned true
+  operator TYPE () { // the value of peak; only valid if the most recent call to process returned true
     return buf[n];
   };
 
-  bool process(TYPE d) { // process a value from the data stream
+  bool operator () (TYPE d) { // process a value from the data stream
     if (buf.push_back(d)) {
       TYPE mid = buf[n];
       if (find_max) {
@@ -69,7 +69,7 @@ class PeakFinder {
     return buf.full();
   };
 
-  bool peak_was_max() {
+  operator bool() {
     return was_max;
   };
 
