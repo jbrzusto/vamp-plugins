@@ -100,7 +100,7 @@ public:
             auto a = acc.array_one();
 
             // loop to process both linear array segments
-            int i;
+            int i = 0;
             for (int jj = 0; jj < 2; ++jj) {
                 if (a.first != 0 && a.second > 0) {
                     if (have_window) {

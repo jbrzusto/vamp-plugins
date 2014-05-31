@@ -98,6 +98,9 @@ testMovingAverager: MovingAverager.h testMovingAverager.cpp
 testSlidingSpectrum: SlidingSpectrum.h testSlidingSpectrum.cpp
 	g++ $(CXXFLAGS) -o testSlidingSpectrum testSlidingSpectrum.cpp -lfftw3f
 
+testSpectralPulseFinder: SpectralPulseFinder.h testSpectralPulseFinder.cpp
+	g++ $(CXXFLAGS) -o testSpectralPulseFinder testSpectralPulseFinder.cpp -lfftw3f
+
 
 clean:
 	rm -f *.o
