@@ -18,28 +18,22 @@
 
 #include <boost/circular_buffer.hpp>
 #include "MovingAverager.h"
-#include "DynamicQuantile.h"
 #include "PeakFinder.h"
-
-using namespace boost::accumulators;
-
-typedef accumulator_set < float, stats < tag::p_square_quantile > > quant_est;
 
 template < typename TYPE >
 
 class FixedPulseDetector {
 public:
   
-  FixedPulseDetector(size_t width, TYPE min_SNR, double max_prob) :
+  FixedPulseDetector(size_t width, TYPE min_SNR, double min_z) :
     width(width),
     min_SNR(min_SNR),
-    max_prob(max_prob),
+    min_z(min_z),
     min_needed(2 * width + 1),
     ma_count(width),
     ma_count_from(width),
     win(width),
     ma_buff(3 * width + 1),
-    dq(1.0 - max_prob, 10000000),
     pk (width, true, false) // only look for local maxima
   {
   };
@@ -59,22 +53,6 @@ public:
         double ma_sig = ma_buff[ma_buff.size() - width - 1];
         double diff = ma_sig - (ma_right + ma_left) / 2.0;
 
-        if (diff > 0) {
-          // this might be a pulse: the signal window has a larger
-          // mean than the background windows on both sides
-
-          if (--ma_count == 0) {
-            // add this difference to the probability distribution
-            // we don't do this every frame to reduce processing requirements;
-            // in any case, the difference changes little between adjacent frames
-            
-            dq(diff);
-            
-            // reset the counter
-            ma_count = ma_count_from;
-          }
-        }
-        
         // send the difference through the peak finder
         if (pk(diff)) {
           // a local max in the between-window difference was found.
@@ -156,7 +134,6 @@ protected:
  
   MovingAverager < TYPE, double > win; // moving average of most recent width samples
   boost::circular_buffer < TYPE > ma_buff; // buffer of recent moving averages, so we need only compute the average of the right window, and lookup the average of the left window, which was computed originally when those samples were in the right window
-  DynamicQuantile < double > dq; // maintain dynamic quantile for absolute values of window difference
   PeakFinder < double > pk; // find peaks in the difference between right and left windows
   
 };
