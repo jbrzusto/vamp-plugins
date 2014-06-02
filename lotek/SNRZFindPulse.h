@@ -48,6 +48,7 @@
 
 #include "vamp-sdk/Plugin.h"
 #include "SpectralPulseFinder.h"
+#include "FreqEstimator.h"
 #include <complex>
 #include <cmath>
 #include <sstream>
@@ -93,7 +94,8 @@ public:
                        Vamp::RealTime timestamp);
 
     FeatureSet getRemainingFeatures();
-    
+
+    double cubicMaximize(double y0, double y1, double y2, double y3);
 
 protected:
     size_t m_channels;
@@ -113,9 +115,8 @@ protected:
 
     float m_min_freq;  // only accept pulses whose offset frequency is at least this (kHz)
     float m_max_freq;  // only accept pulses from bins whose offset frequency is at most this (kHz)
-    
-    float m_power_scale_dB; // add this to fourier bin power to get dB
 
+    
     // parameter defaults
     static float m_default_plen;
     static int m_default_fft_win;
@@ -127,20 +128,29 @@ protected:
     static float m_default_max_freq;
 
     // internal registers
+    int m_num_bins;  // number of FFT bins, including zero-padding bins
+    int m_num_finders; // number of FFT bins we're actually looking for pulses in
     int m_plen_samples;
+    float m_power_scale_dB; // add this to fourier bin power to get dB
+
+    bool m_batch_host; // does the host want batch output? (e.g. vamp-alsa-host style instead of audacity?)
 
     double m_bin_step; // FFT bin step (kHz)
     int m_min_bin;
     int m_max_bin;
 
-    // sample buffer, with interleaved floats from two channels, from which fft estimates will be calculated
-    //    boost::circular_buffer < float > m_sample_buf; 
+    // sample buffer, from which finer frequency estimates will be calculated
+    // when pulses are found
+    
+    boost::circular_buffer < std::complex < float > > m_sample_buf; 
 
     //    MovingAverager < std::complex < float > , std::complex < double > > m_dcma; // moving averager for removing (slow) DC
 
     // pulse detector
     SpectralPulseFinder *m_spf;
-    
+
+    // frequency estimator
+    FreqEstimator *m_fest;
 };
 
 

@@ -63,7 +63,9 @@ SNRZFindPulse::SNRZFindPulse(float inputSampleRate) :
     m_min_SNR_dB(m_default_min_SNR_dB),
     m_min_freq (m_default_min_freq),
     m_max_freq (m_default_max_freq),
-    m_spf(0)
+    m_batch_host (false),
+    m_spf(0),
+    m_fest(0)
     //    m_dcma (10000)
 {
 }
@@ -72,6 +74,8 @@ SNRZFindPulse::~SNRZFindPulse()
 {
     if (m_spf)
         delete m_spf;
+    if (m_fest)
+        delete m_fest;
 }
 
 string
@@ -121,7 +125,8 @@ SNRZFindPulse::initialise(size_t channels, size_t stepSize, size_t blockSize)
     m_blockSize = blockSize;
 
     m_plen_samples = (m_plen / 1000.0) * m_inputSampleRate;
-    m_power_scale_dB = - 20 * log10(m_fft_win * m_fft_pad);
+    m_num_bins = m_fft_win * m_fft_pad;
+    m_power_scale_dB = - 20 * log10(m_num_bins);
 
     // cap frequency limits at Nyquist
     if (m_min_freq > m_inputSampleRate / 2000)
@@ -129,13 +134,17 @@ SNRZFindPulse::initialise(size_t channels, size_t stepSize, size_t blockSize)
     if (m_max_freq > m_inputSampleRate / 2000)
         m_max_freq = m_inputSampleRate / 2000;
     
-    m_bin_step = m_inputSampleRate / (1000.0 * m_fft_win * m_fft_pad);
+    m_bin_step = m_inputSampleRate / (1000.0 * m_num_bins);
     m_min_bin = floor(m_min_freq / m_bin_step) ;
     m_max_bin = ceil(m_max_freq / m_bin_step) ;
     
+    m_num_finders = m_max_bin - m_min_bin + 1;
+
     m_spf = new SpectralPulseFinder (m_plen_samples, m_fft_win, m_fft_pad, m_fft_overlap, m_min_bin, m_max_bin, m_min_SNR_dB, m_min_Z);
 
-//    m_sample_buf = boost::circular_buffer < float > (2 * (m_max_plen_samples + (m_min_plen_samples * 2 + 1)));
+    m_fest = new FreqEstimator (m_plen_samples);
+
+    m_sample_buf = boost::circular_buffer < std::complex < float > > (3 * m_plen_samples);
 
     return true;
 }
@@ -279,6 +288,14 @@ SNRZFindPulse::setParameter(string id, float value)
         SNRZFindPulse::m_default_min_freq = m_min_freq = value;
     } else if (id == "maxfreq") {
         SNRZFindPulse::m_default_max_freq = m_max_freq = value;
+    } else if (id == "__batch_host__") {
+        // kludge: hidden parameter that affects whether this plugin
+        // produces output for a batch-style host (e.g. vamp-alsa-host)
+        // or for display in a GUI-style host (e.g. audacity)
+        // The default value for m_batch_host is false, so it will stay
+        // thus unless a host is aware of this parameter and sets it to
+        // true.
+        SNRZFindPulse::m_batch_host = value;
     } else {
         throw std::runtime_error("invalid parameter name");
     }
@@ -297,7 +314,7 @@ SNRZFindPulse::getOutputDescriptors() const
     zc.description = "The locations and features of pulses";
     zc.unit = "";
     zc.hasFixedBinCount = true;
-    zc.binCount = 0;
+    zc.binCount = m_batch_host ? 3 : 0;
     zc.sampleType = OutputDescriptor::VariableSampleRate;
     zc.sampleRate = m_inputSampleRate;
     list.push_back(zc);
@@ -323,6 +340,10 @@ SNRZFindPulse::process(const float *const *inputBuffers,
 
         std::complex < float > sample (inputBuffers[0][i], inputBuffers[1][i]);
         
+        // buffer it
+
+        m_sample_buf.push_back(sample);
+
         // send it to the pulse finder
 
         if ((*m_spf) (sample)) {
@@ -343,15 +364,39 @@ SNRZFindPulse::process(const float *const *inputBuffers,
                 // The pulse timestamp is taken to be the centre of the pulse window
 
                 feature.timestamp = ts;
-        
-                std::stringstream ss;
-                ss.precision(5);
- 
-                ss << "pwr: " <<  10 * log10(m_spf->signal(i) - m_spf->noise(i)) + m_power_scale_dB << " dB"
-                   << "; bgkd: " <<  10 * log10(m_spf->noise(i)) + m_power_scale_dB << " dB"
-                   << ";  bin: " << i << "; Z: " << m_spf->Z(i);
+     
+                float sig = 10 * log10(m_spf->signal(i) - m_spf->noise(i)) + m_power_scale_dB;
+                float noise = 10 * log10(m_spf->noise(i)) + m_power_scale_dB;
+
+                // get a better estimate of frequency offset
+                auto a1 = m_sample_buf.array_one();
+                auto a2 = m_sample_buf.array_two();
+                
+                int n1 = std::min (m_plen_samples, (int) a1.second);
+                int n2 = std::min (m_plen_samples - n1, 0);
+                
+                float freq = m_fest->get(a1.first, n1, a2.first, n2);
+                
+                if (fabs(freq - (i + m_min_bin) * m_plen_samples / (float) m_num_bins) > 2)
+                    continue; // don't use this pulse - the main energy is in another bin
+
+                freq *= m_inputSampleRate / (1000.0 * m_plen_samples);
+               
+                if (m_batch_host) {
+                    feature.values.push_back(freq);
+                    feature.values.push_back(sig);
+                    feature.values.push_back(noise);
+                } else {
+                    std::stringstream ss;
+                    ss.precision(5);
+                    
+                    ss << "freq: " << freq << " (kHz)"
+                       << "; pwr: " << sig << " dB"
+                       << "; bgkd: " << noise  << " dB"
+                       << ";  bin: " << i << "; Z: " << m_spf->Z(i);
             
-                feature.label = ss.str();
+                    feature.label = ss.str();
+                }
                 returnFeatures[0].push_back(feature);
             }
         }
