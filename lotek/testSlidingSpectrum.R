@@ -44,7 +44,7 @@ xq = sin(fm * t)
 
 tf = tempfile()
 
-p = pipe(sprintf("./testSlidingSpectrum %d %d %d %d > %s", n, n * (pf - 1), overlap, wintype, tf), "w")
+p = pipe(sprintf("./testSlidingSpectrum %d %d %d %d %d %d > %s", n, n * (pf - 1), overlap, 0, pf * n - 1, wintype, tf), "w")
 
 cat (c(rbind(xi, xq)), file=p)
 

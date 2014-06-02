@@ -31,7 +31,10 @@ class MovingAverager {
     return m_total / buf.size();
   };
 
-  bool operator() (const DATATYPE & d) { // process a value from the data stream
+  bool operator() (const DATATYPE & d) { 
+    // process a value from the data stream
+    // return true if a (full window) moving average is available
+    // (always true once we've seen n samples)
     if (buf.full())
       m_total -= buf.front();
     buf.push_back(d);

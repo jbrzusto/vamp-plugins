@@ -79,17 +79,19 @@ public:
     };
 
     ~SlidingSpectrum() {
-        // silently fail if we can't export wisdom
-        if (! fftw_wisdom_loaded) {
-            FILE *f = fopen(fftw_wisdom_filename.c_str(), "wb");
-            if (f) {
-                (void) fftwf_export_wisdom_to_file(f);
-                fclose(f);
+        if (plan) {
+            // silently fail if we can't export wisdom
+            if (! fftw_wisdom_loaded) {
+                FILE *f = fopen(fftw_wisdom_filename.c_str(), "wb");
+                if (f) {
+                    (void) fftwf_export_wisdom_to_file(f);
+                    fclose(f);
+                }
             }
+            fftwf_destroy_plan(plan);
+            fftwf_free(input);
+            fftwf_free(output);
         }
-        fftwf_destroy_plan(plan);
-        fftwf_free(input);
-        fftwf_free(output);
     };
 
     bool operator () (const std::complex < float >  &d) {
@@ -173,8 +175,5 @@ protected:
     };
 
 };
-
-std::string SlidingSpectrum::fftw_wisdom_filename = "fftwf3_wisdom.dat";
-bool SlidingSpectrum::fftw_wisdom_loaded = false;
 
 #endif // _SLIDING_SPECTRUM_H_

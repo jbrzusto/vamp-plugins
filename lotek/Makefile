@@ -25,7 +25,7 @@ PLUGIN_INSTALL_DIR = ~/.vamp
 
 # Edit this to list one .o file for each .cpp file in your plugin project
 #
-PLUGIN_CODE_OBJECTS = FindPulseFD.o FindPulseFDBatch.o FindPulseTD.o FindPulseTDBatch.o NewFindPulse.o
+PLUGIN_CODE_OBJECTS = SNRZFindPulse.o SlidingSpectrum.o # FindPulseFD.o FindPulseFDBatch.o FindPulseTD.o FindPulseTDBatch.o NewFindPulse.o
 
 # Edit this to the location of the Vamp plugin SDK, relative to your
 # project directory
@@ -66,6 +66,8 @@ NewFindPulse.o: NewFindPulse.h SortedFifo.h DynamicQuantile.h PeakFinder.h Movin
 
 FreqEstimator.o: FreqEstimator.h
 
+SlidingSpectrum.o: SlidingSpectrum.cpp SlidingSpectrum.h
+
 testFreqEstimator.o: FreqEstimator.h testFreqEstimator.cpp
 
 testFreqEstimator: testFreqEstimator.o FreqEstimator.o
@@ -96,10 +98,10 @@ testMovingAverager: MovingAverager.h testMovingAverager.cpp
 	g++ $(CXXFLAGS) -o testMovingAverager testMovingAverager.cpp
 
 testSlidingSpectrum: SlidingSpectrum.h testSlidingSpectrum.cpp
-	g++ $(CXXFLAGS) -o testSlidingSpectrum testSlidingSpectrum.cpp -lfftw3f
+	g++ $(CXXFLAGS) -o testSlidingSpectrum SlidingSpectrum.cpp testSlidingSpectrum.cpp -lfftw3f
 
-testSpectralPulseFinder: SpectralPulseFinder.h testSpectralPulseFinder.cpp
-	g++ $(CXXFLAGS) -o testSpectralPulseFinder testSpectralPulseFinder.cpp -lfftw3f
+testSpectralPulseFinder: SpectralPulseFinder.h testSpectralPulseFinder.cpp 
+	g++ $(CXXFLAGS) -o testSpectralPulseFinder testSpectralPulseFinder.cpp SlidingSpectrum.o -lfftw3f
 
 
 clean:
