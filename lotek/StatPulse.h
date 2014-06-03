@@ -35,20 +35,21 @@
         use or other dealings in this Software without prior written
         authorization.
 
-    FindPulseFD.cpp - find pulses from Lotek tags - frequency domain
+    StatPulse.cpp - find low-probability pulses with width in a specified range.
+
     Copyright 2012 John Brzustowski
 
     License: GPL v 2.0 or later.  This is required in order to use fftw.
 
 */
 
-#ifndef _FIND_PULSEFD_PLUGIN_H_
-#define _FIND_PULSEFD_PLUGIN_H_
+#ifndef _STATPULSE_PLUGIN_H_
+#define _STATPULSE_PLUGIN_H_
 
 #include <boost/circular_buffer.hpp>
 #include "vamp-sdk/Plugin.h"
-#include "ProbPulseFinder.h"
-#include "MovingAverager.h"
+#include "PulseFinder.h"
+#include "FreqEstimator.h"
 #include <complex>
 #include <fftw3.h>
 #include <boost/circular_buffer.hpp>
@@ -60,19 +61,12 @@
 #define fftw_free(X) fftwf_free(X)
 #endif
 
-/**
- * Look for pulses from Lotek tags - Frequency Domain version
-*/
-
-class FindPulseFD : public Vamp::Plugin
+class StatPulse : public Vamp::Plugin
 {
 public:
-    static float cubicMaximize(float y0, float y1, float y2, float y3);
-    static float cubicInterpolate(float y0, float y1, float y2, float y3, float x);
-    static void generateWindowingCoefficients(int N, std::vector < float > &window, float &win_sum, float &win_sumsq);
 
-    FindPulseFD(float inputSampleRate);
-    virtual ~FindPulseFD();
+    StatPulse(float inputSampleRate);
+    virtual ~StatPulse();
 
     bool initialise(size_t channels, size_t stepSize, size_t blockSize);
     void reset();
@@ -107,58 +101,44 @@ protected:
     size_t m_blockSize;
     
     // parameters
-    float m_plen;        // length of pulse we're trying to detect, in ms
-    int m_plen_in_samples; // length of pulse, measured in samples
-    float m_min_pulse_Z; // minimum pulse power to be accepted (linear units)
-    int m_fft_win_size;  // number of consecutive samples in non-overlapping FFT windows
-    int m_noise_win_size; // size of noise window on each side of pulse, in multiples of pulse length
-    int m_min_pulse_sep; // minimum separation between pulses, in multiples of pulse length
-    float m_min_freq;  // only accept pulses from bins whose centre frequency is at least this
-    float m_max_freq;  // only accept pulses from bins whose centre frequency is at most this
+
+    float m_min_plen; // minimum pulse length, in milliseconds
+    float m_max_plen; // maximum pulse length, in milliseconds
+    float m_bkgd_len; // length of background window, in milliseconds
+    float m_max_pulse_prob; // maximum P-value for a pulse to be accepted
+    float m_min_freq;  // only accept pulses whose estimated offset frequency is at least this (can be negative)
+    float m_max_freq;  // only accept pulses whose estimated offset frequency is at most this (can be negative)
+    float m_accept_raw_samples; // defaults to 0; set to 1.0 by host when it can provide raw samples
 
     // parameter defaults
-    static float m_default_plen;
-    static float m_default_min_pulse_Z;
-    static int   m_default_fft_win_size;
-    static int   m_default_noise_win_size;
-    static int   m_default_min_pulse_sep;
+    static float m_default_min_plen;
+    static float m_default_max_plen;
+    static float m_default_bkgd_len;
+    static float m_default_max_pulse_prob;
     static float m_default_min_freq;
     static float m_default_max_freq;
 
     // internal registers
+    int m_plen_samples;  // maximum pulse length, in samples
+    int m_bkgd_samples;  // length of background window, in samples
+
     float m_probe_scale; // divisor to convert raw probe value to power
     float m_min_probe; // scaled value of m_min_pulse_power_dB
-    float *m_windowed[2 * 2]; // windowed data in time domain (one buffer for each phase of overlapping window sequence)
-    fftwf_complex *m_fft[2]; // DFT of power for each channel
-    fftwf_plan m_plan[2 * 2]; // FFT plans for both input phase windows on each channel
-    bool m_have_fft_plan; // have FFT plans been generated?
-    int m_pf_size; // size of peak finder moving average window (in units of fft windows)
-    std::vector < Vamp::RealTime > m_last_timestamp; // timestamp of previous pulse in each frequency bin; for calculating gaps
-    std::vector < float > m_window; // windowing function for sliding FFT
-    std::vector < float > m_pulse_window; // windowing function for FFT on pulse candidates
-
-    float m_win_s1; // sum of window weights
-    float m_win_s2; // sum of squares of window weights
+    int m_pf_size; // size of peak finder moving average window, in samples
+    Vamp::RealTime  m_last_timestamp; // timestamp of previous pulse
 
     // the following members are used to calculate a finer estimate of dfreq once a pulse has been found
-    float *m_windowed_fine[2]; // windowed samples
-    boost::circular_buffer < float > m_sample_buf[2]; // ring buffer of time domain samples from each channel
-    fftwf_plan m_plan_fine[2]; // FFT plans for pulse samples on each channel
-    fftwf_complex *m_fft_fine[2]; // DFT output from pulse samples
+    std::vector < float > m_pulse_window; // windowing function for FFT on pulse candidates
 
-    int m_num_windowed_samples[2];  // number of samples put in m_windowed array since last fft; one for each phase window
-    int m_first_freq_bin; // index of first frequency bin to monitor
-    int m_last_freq_bin; // index of last frequency bin to monitor
+    boost::circular_buffer < int16_t > m_sample_buf; // ring buffer of time domain samples from each channel, interleaved as I/C complex pair; fixme: hardcoded S16_LE
 
-    bool m_odd_phase_window_is_bogus; // keep track of whether we're on the first odd-phase window, which has only half
-    // the data and so is not used
+    int m_num_samples;  // number of samples processed
 
-    std::vector < ProbPulseFinder < double > > m_freq_bin_pulse_finder;
+    PulseFinder < double > m_pulse_finder;
 
-    MovingAverager < float, float > m_dcma[2]; // moving averager for removing DC on each channel
-
+    FreqEstimator freq_est;
     static const char * fftw_wisdom_filename;
 };
 
 
-#endif // _FIND_PULSEFD_PLUGIN_H_
+#endif // _STATPULSE_PLUGIN_H_

@@ -113,8 +113,6 @@ protected:
     MovingAverager < float, float > m_bkgd_power_ma;
     MovingAverager < std::complex < float >, std::complex < float > > m_pulse_phasor_ma;
 
-    // constants
-    static const float NO_LAST_PHASE = -10;
 };
 
 

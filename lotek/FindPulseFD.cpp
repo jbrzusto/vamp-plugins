@@ -145,7 +145,7 @@ FindPulseFD::FindPulseFD(float inputSampleRate) :
     m_stepSize(0),
     m_blockSize(0),
     m_plen(m_default_plen),
-    m_min_pulse_SNR(exp10(m_default_min_pulse_SNR_dB / 10.0)),
+    m_min_pulse_Z(m_default_min_pulse_Z),
     m_fft_win_size (m_default_fft_win_size),
     m_noise_win_size (m_default_noise_win_size),
     m_min_pulse_sep (m_default_min_pulse_sep),
@@ -234,7 +234,7 @@ FindPulseFD::initialise(size_t channels, size_t stepSize, size_t blockSize)
 
     m_last_timestamp = std::vector < Vamp::RealTime > (num_bins, Vamp::RealTime(-1, 0));
 
-    m_freq_bin_pulse_finder = std::vector < PulseFinder < double > > (num_bins, PulseFinder < double > (131072, m_pf_size, m_pf_size * m_noise_win_size, m_pf_size * m_min_pulse_sep));
+    m_freq_bin_pulse_finder = std::vector < ProbPulseFinder < double > > (num_bins, ProbPulseFinder < double > (131072, m_pf_size, m_pf_size * m_noise_win_size, m_pf_size * m_min_pulse_sep));
 
     // allocate time-domain sample buffers for each channel which are large enough to contain
     // the samples for a pulse when it has been detected.  Because pulses are not
@@ -323,13 +323,13 @@ FindPulseFD::getParameterDescriptors() const
     d.isQuantized = false;
     list.push_back(d);
 
-    d.identifier = "minsnr";
-    d.name = "Minimum Pulse SNR (unit: dB)";
-    d.description = "Minimum pulse signal-to-noise ratio";
-    d.unit = "dB";
+    d.identifier = "minz";
+    d.name = "Minimum Pulse Signal - Noise Z score";
+    d.description = "Minimum pulse signal minus noise Z score";
+    d.unit = "(none)";
     d.minValue = 0;
-    d.maxValue = 96;
-    d.defaultValue = FindPulseFD::m_default_min_pulse_SNR_dB;
+    d.maxValue = 1000;
+    d.defaultValue = FindPulseFD::m_default_min_pulse_Z;
     d.isQuantized = false;
     list.push_back(d);
 
@@ -394,8 +394,8 @@ FindPulseFD::getParameter(string id) const
 {
     if (id == "plen") {
         return m_plen;
-    } else if (id == "minsnr") {
-        return 10 * log10(m_min_pulse_SNR);
+    } else if (id == "minz") {
+        return m_min_pulse_Z;
     } else if (id == "fftsize") {
         return m_fft_win_size;
     } else if (id == "noisesize") {
@@ -415,9 +415,9 @@ FindPulseFD::setParameter(string id, float value)
 {
     if (id == "plen") {
         FindPulseFD::m_default_plen = m_plen = value;
-    } else if (id == "minsnr") {
-        FindPulseFD::m_default_min_pulse_SNR_dB =  value;
-        m_min_pulse_SNR = exp10(value / 10.0);
+    } else if (id == "minz") {
+        FindPulseFD::m_default_min_pulse_Z =  value;
+        m_min_pulse_Z = value;
     } else if (id == "fftsize") {
         FindPulseFD::m_default_fft_win_size = m_fft_win_size = value;
     } else if (id == "noisesize") {
@@ -514,7 +514,7 @@ FindPulseFD::process(const float *const *inputBuffers,
                 for (int j = m_first_freq_bin; j <= m_last_freq_bin; ++j) {
                     float bin_probe;
                     if (m_freq_bin_pulse_finder[j].got_pulse() 
-                        && m_freq_bin_pulse_finder[j].pulse_SNR() >= m_min_pulse_SNR
+                        && m_freq_bin_pulse_finder[j].pulse_Z() >= m_min_pulse_Z
                         && (bin_probe = m_freq_bin_pulse_finder[j].pulse_signal()) >= highest_probe_signal ) {
                         highest_probe_signal = bin_probe;
                         best = j;
@@ -635,8 +635,8 @@ FindPulseFD::process(const float *const *inputBuffers,
                         ss.precision(5);
  
                         ss << " freq: " << (bin_est * ((float) m_inputSampleRate / m_plen_in_samples)) / 1000
-                           << " kHz; SNR: " << 10 * log10(m_freq_bin_pulse_finder[best].pulse_SNR())
-                           << " dB; sig: " << 10 * log10(m_freq_bin_pulse_finder[best].pulse_signal() / m_probe_scale)
+                           << " kHz; Z: " << m_freq_bin_pulse_finder[best].pulse_Z()
+                           << " ; sig: " << 10 * log10(m_freq_bin_pulse_finder[best].pulse_signal() / m_probe_scale)
                            << " dB; noise: " << 10 * log10(m_freq_bin_pulse_finder[best].pulse_noise() / m_probe_scale)
                            << " dB;";
                        
@@ -669,7 +669,7 @@ FindPulseFD::getRemainingFeatures()
 }
 
 float FindPulseFD::m_default_plen = 2.5; // milliseconds
-float FindPulseFD::m_default_min_pulse_SNR_dB = 5; // dB
+float FindPulseFD::m_default_min_pulse_Z = 3; // dB
 int FindPulseFD::m_default_fft_win_size = 24; // 0.5 milliseconds @ 48kHz
 int FindPulseFD::m_default_noise_win_size = 5; // pulse lengths
 int FindPulseFD::m_default_min_pulse_sep = 1; //pulse lengths

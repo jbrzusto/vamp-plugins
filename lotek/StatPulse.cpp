@@ -35,14 +35,14 @@
   use or other dealings in this Software without prior written
   authorization.
     
-  FindPulseTD.cpp - find pulses from Lotek tags - frequency domain
-  Copyright 2012 John Brzustowski
+  StatPulse.cpp - find pulses with length in a given range.
+  Copyright 2014 John Brzustowski
 
   License: GPL v 2.0 or later.  This is required in order to use fftw.
 
 */
 
-#include "FindPulseTD.h"
+#include "StatPulse.h"
 
 using std::stringstream;
 using std::string;
@@ -50,106 +50,23 @@ using std::vector;
 using std::cerr;
 using std::endl;
 
-const char * FindPulseTD::fftw_wisdom_filename = "./fftw_wisdom.dat";
+const char * StatPulse::fftw_wisdom_filename = "./fftw_wisdom.dat";
 
 // from Audacity 2.0.1's src/FreqWindow.cpp:
 
-float 
-FindPulseTD::cubicMaximize(float y0, float y1, float y2, float y3)
-{
-    // Find coefficients of cubic
 
-    float a, b, c;
-
-    a = y0 / -6.0 + y1 / 2.0 - y2 / 2.0 + y3 / 6.0;
-
-    if (a == 0.0)
-        return float(-1000); // error
-
-    b = y0 - 5.0 * y1 / 2.0 + 2.0 * y2 - y3 / 2.0;
-    c = -11.0 * y0 / 6.0 + 3.0 * y1 - 3.0 * y2 / 2.0 + y3 / 3.0;
-
-    // Take derivative
-
-    float da, db, dc;
-
-    da = 3 * a;
-    db = 2 * b;
-    dc = c;
-
-    // Find zeroes of derivative using quadratic equation
-
-    float discriminant = db * db - 4 * da * dc;
-    if (discriminant < 0.0) {
-        if (discriminant < -1.0)
-            return float(-1000);              // error
-        else
-            discriminant = 0.0;
-    }              
-
-    float x1 = (-db + sqrt(discriminant)) / (2 * da);
-    float x2 = (-db - sqrt(discriminant)) / (2 * da);
-
-    // The one which corresponds to a local _maximum_ in the
-    // cubic is the one we want - the one with a negative
-    // second derivative
-
-    float dda = 2 * da;
-    float ddb = db;
-
-    if (dda * x1 + ddb < 0)
-        {
-            return x1;
-        }
-    else
-        {
-            return x2;
-        }
-}
-
-// from Audacity 2.0.1's src/FreqWindow.cpp:
-
-float 
-FindPulseTD::cubicInterpolate(float y0, float y1, float y2, float y3, float x)
-{
-    float a, b, c, d;
-
-    a = y0 / -6.0 + y1 / 2.0 - y2 / 2.0 + y3 / 6.0;
-    b = y0 - 5.0 * y1 / 2.0 + 2.0 * y2 - y3 / 2.0;
-    c = -11.0 * y0 / 6.0 + 3.0 * y1 - 3.0 * y2 / 2.0 + y3 / 3.0;
-    d = y0;
-
-    float xx = x * x;
-    float xxx = xx * x;
-
-    return (a * xxx + b * xx + c * x + d);
-};
-
-void
-FindPulseTD::generateWindowingCoefficients(int N, std::vector < float > &window, float &win_sum, float &win_sumsq)
-{
-    // generate a Hamming window of size N in float array window, 
-    // Return sums and sums of squares of window coefficients in win_sum and win_sumsq.
-
-    window = std::vector < float > (N);
-    win_sum = win_sumsq = 0.0;
-    for (int i = 0; i < N; ++i) {
-        window[i] = 0.54 - 0.46 * cosf(2 * M_PI * i / (N - 1));
-        win_sum += window[i];
-        win_sumsq += window[i] * window[i];
-    }
-}
-
-FindPulseTD::FindPulseTD(float inputSampleRate) :
+StatPulse::StatPulse(float inputSampleRate) :
     Plugin(inputSampleRate),
     m_stepSize(0),
     m_blockSize(0),
-    m_plen(m_default_plen),
-    m_min_pulse_SNR(exp10(m_default_min_pulse_SNR_dB / 10.0)),
-    m_noise_win_size (m_default_noise_win_size),
-    m_min_pulse_sep (m_default_min_pulse_sep),
+    m_min_plen(m_default_min_plen),
+    m_max_plen(m_default_max_plen),
+    m_bkgd_len(m_default_bkgd_len),
+    m_max_pulse_prob(m_default_max_pulse_prob),
     m_min_freq (m_default_min_freq),
-    m_max_freq (m_default_max_freq)
+    m_max_freq (m_default_max_freq),
+    m_accept_raw_samples (0.0)
+
 {
     // silently fail if wisdom cannot be found
     FILE *f = fopen(fftw_wisdom_filename, "r");
@@ -159,7 +76,7 @@ FindPulseTD::FindPulseTD(float inputSampleRate) :
     }
 }
 
-FindPulseTD::~FindPulseTD()
+StatPulse::~StatPulse()
 {
     // silently fail if we can't export wisdom
     FILE *f = fopen(fftw_wisdom_filename, "wb");
@@ -170,43 +87,43 @@ FindPulseTD::~FindPulseTD()
 }
 
 string
-FindPulseTD::getIdentifier() const
+StatPulse::getIdentifier() const
 {
-    return "findpulseTD";
+    return "statpulse";
 }
 
 string
-FindPulseTD::getName() const
+StatPulse::getName() const
 {
-    return "Find Pulses in Time Domain";
+    return "Find Pulses Statistically";
 }
 
 string
-FindPulseTD::getDescription() const
+StatPulse::getDescription() const
 {
-    return "Find pulses (e.g. from Lotek telemetry tags)";
+    return "Find pulses (e.g. from telemetry tags)";
 }
 
 string
-FindPulseTD::getMaker() const
+StatPulse::getMaker() const
 {
     return "sensorgnome.org jbrzusto@fastmail.fm";
 }
 
 int
-FindPulseTD::getPluginVersion() const
+StatPulse::getPluginVersion() const
 {
     return 1;
 }
 
 string
-FindPulseTD::getCopyright() const
+StatPulse::getCopyright() const
 {
     return "GPL version 2 or later";
 }
 
 bool
-FindPulseTD::initialise(size_t channels, size_t stepSize, size_t blockSize)
+StatPulse::initialise(size_t channels, size_t stepSize, size_t blockSize)
 {
     if (channels < getMinChannelCount() ||
 	channels > getMaxChannelCount()) return false;
@@ -215,32 +132,27 @@ FindPulseTD::initialise(size_t channels, size_t stepSize, size_t blockSize)
     m_stepSize = stepSize;
     m_blockSize = blockSize;
 
-    m_plen_in_samples = (m_plen / 1000.0) * m_inputSampleRate;
-
-    m_pf_size = m_plen_in_samples;
+    m_plen_samples = (m_max_plen / 1000.0) * m_inputSampleRate;
 
     m_last_timestamp = Vamp::RealTime(-1, 0);
 
-    m_pulse_finder = PulseFinder < double > (131072, m_pf_size, m_pf_size * m_noise_win_size, m_pf_size * m_min_pulse_sep);
-
-    // allocate time-domain sample buffers for each channel which are large enough to contain
-    // the samples for a pulse when it has been detected.  Because pulses are not
-    // detected until the sliding window determines them to be maximal in the
-    // frequency domain, we need to keep a rather long window.
+    // allocate a time-domain sample buffer for interleaved channels,
+    // large enough to contain the samples for a pulse when it has
+    // been detected.  Because pulses are not detected until the
+    // sliding window determines them to be locally maximal, need to
+    // keep a rather long window.
   
-    int buf_size = (m_noise_win_size + m_min_pulse_sep) * m_pf_size + m_plen_in_samples; // takes us back to start of pulse from current sample
+    int buf_size = m_bkgd_samples * 2 + m_plen_samples; // enough to take us back to start of pulse from current sample
 
-    for (int i=0; i < 2; ++i) 
-        m_sample_buf[i] = boost::circular_buffer < float > (buf_size);
+    m_sample_buf[i] = boost::circular_buffer < int16_t > (buf_size * numChan);
 
     // allocate windowed sample buffers, fft output buffers and plans
     // for finer dfreq estimates based on pulse samples
 
-    for (int i=0; i < 2; ++i) {
-        m_windowed_fine[i] = (float *) fftwf_malloc(m_plen_in_samples * sizeof(float));
-        m_fft_fine[i] = (fftwf_complex *) fftwf_malloc((m_plen_in_samples / 2 + 1) * sizeof(fftwf_complex));
-        m_plan_fine[i] = fftwf_plan_dft_r2c_1d(m_plen_in_samples, m_windowed_fine[i], m_fft_fine[i], FFTW_PATIENT);
-    }
+    m_complex_samples = (fftwf_complex *) fftwf_malloc(m_plen_samples * sizeof(fftw_complex));
+    m_fft_output =      (fftwf_complex *) fftwf_malloc(m_plen_samples * sizeof(fftw_complex));
+
+    m_plan = fftwf_plan_dft_c2c_1d(m_plen_samples, m_complex_samples, m_fft_output, FFTW_PATIENT);
 
     // cap frequency limits at Nyquist
     if (m_min_freq > m_inputSampleRate / 2000)
@@ -253,87 +165,95 @@ FindPulseTD::initialise(size_t channels, size_t stepSize, size_t blockSize)
     // get windowing coefficients for pulse-sized window; we don't estimate power
     // from this, so don't need the moments
 
-    float ignore1, ignore2;
-    generateWindowingCoefficients(m_plen_in_samples, m_pulse_window, ignore1, ignore2);
+    //    float ignore1, ignore2;
+    //    generateWindowingCoefficients(m_plen_samples, m_pulse_window, ignore1, ignore2);
 
-    m_probe_scale = 2.0 / m_channels;
+    // m_probe_scale = 2.0 / m_channels;
 
-    for (unsigned i = 0; i < m_channels; ++i)
-        m_dcma[i] = MovingAverager < float, float > (m_pf_size * (1 + m_noise_win_size));
+    //for (unsigned i = 0; i < m_channels; ++i)
+    // m_dcma[i] = MovingAverager < float, float > (m_pf_size * (1 + m_noise_win_size));
 
     return true;
 }
 
 void
-FindPulseTD::reset()
+StatPulse::reset()
 {
 }
 
-FindPulseTD::ParameterList
-FindPulseTD::getParameterDescriptors() const
+StatPulse::ParameterList
+StatPulse::getParameterDescriptors() const
 {
     ParameterList list;
 
     ParameterDescriptor d;
-    d.identifier = "plen";
-    d.name = "Pulse Length (unit: milliseconds)";
-    d.description = "Duration of a transmitted pulse in milliseconds";
+    d.identifier = "acceptsRawSamples";
+    d.name = "indicates this plugin can accept raw samples from a vamp host";
+    d.description = "Not a user parameter; vamp-hosts set this to 1.";
+    d.unit = "";
+    d.minValue = 0;
+    d.maxValue = 0;
+    d.defaultValue = 0;
+    d.isQuantized = false;
+    list.push_back(d);
+
+    d.identifier = "minplen";
+    d.name = "Minimum Pulse Length (unit: milliseconds)";
+    d.description = "Minimum duration of a transmitted pulse in milliseconds";
     d.unit = "milliseconds";
     d.minValue = 0.1;
     d.maxValue = 500;
-    d.defaultValue = FindPulseTD::m_default_plen;
+    d.defaultValue = StatPulse::m_default_min_plen;
     d.isQuantized = false;
     list.push_back(d);
 
-    d.identifier = "minsnr";
-    d.name = "Minimum Pulse SNR (unit: dB)";
-    d.description = "Minimum pulse signal-to-noise ratio";
-    d.unit = "dB";
-    d.minValue = 0;
-    d.maxValue = 96;
-    d.defaultValue = FindPulseTD::m_default_min_pulse_SNR_dB;
+    d.identifier = "maxplen";
+    d.name = "Maximum Pulse Length (unit: milliseconds)";
+    d.description = "Maximum duration of a transmitted pulse in milliseconds";
+    d.unit = "milliseconds";
+    d.inValue = 0.1;
+    d.maxValue = 500;
+    d.defaultValue = StatPulse::m_default_max_plen;
     d.isQuantized = false;
     list.push_back(d);
 
-    d.identifier = "noisesize";
-    d.name = "Size of noise window (unit: pulse length)";
-    d.description = "Size of window on each side of signal that is used to estimate noise.  In multiples of signal pulse length.";
-    d.unit = "pulses";
-    d.minValue = 1;
-    d.maxValue = 100;
-    d.defaultValue = FindPulseTD::m_default_noise_win_size;
-    d.isQuantized = true;
-    d.quantizeStep = 1;
+    d.identifier = "bkgdlen";
+    d.name = "Size of background window (unit: milliseconds)";
+    d.description = "Size of each of two adjacent windows used to compare power for pulse edge detection.";
+    d.unit = "milliseconds";
+    d.minValue = 0.1;
+    d.maxValue = 500;
+    d.defaultValue = StatPulse::m_default_bkgd_len;
+    d.isQuantized = false;
     list.push_back(d);
 
-    d.identifier = "pulsesep";
-    d.name = "Minimum separation of pulses (unit: pulse length)";
-    d.description = "Minimum separation between a pulse and adjacent pulses in order to be detected, in units of pulse length.";
-    d.unit = "pulses";
-    d.minValue = 1;
-    d.maxValue = 100;
-    d.defaultValue = FindPulseTD::m_default_min_pulse_sep;
-    d.isQuantized = true;
-    d.quantizeStep = 1;
+    d.identifier = "maxpulseprob";
+    d.name = "log10(P-value) for pulse edge detection";
+    d.description = "The maximum P-value for a t-test between the mean power in two adjacent windows on either side of pulse edge";
+    d.unit = "";
+    d.minValue = 1e-12;
+    d.maxValue = 1e-2;
+    d.defaultValue = StatPulse::m_default_max_pulse_prob;
+    d.isQuantized = false;
     list.push_back(d);
 
     d.identifier = "minfreq";
-    d.name = "Minimum Tag Offset Frequency (unit: kHz)";
-    d.description = "Minimum frequency by which tag differs from receiver, in kHz";
+    d.name = "Minimum Pulse Offset Frequency (unit: kHz)";
+    d.description = "Minimum frequency by which pulse differs from receiver, in kHz";
     d.unit = "kHz";
-    d.minValue = 0;
+    d.minValue = -m_inputSampleRate / 2000;
     d.maxValue = m_inputSampleRate / 2000;
-    d.defaultValue = FindPulseTD::m_default_min_freq;
+    d.defaultValue = StatPulse::m_default_min_freq;
     d.isQuantized = false;
     list.push_back(d);
 
     d.identifier = "maxfreq";
-    d.name = "Maximum Tag Offset Frequency (unit: kHz)";
-    d.description = "Maximum frequency by which tag differs from receiver, in kHz";
+    d.name = "Maximum Pulse Offset Frequency (unit: kHz)";
+    d.description = "Maximum frequency by which pulse differs from receiver, in kHz";
     d.unit = "kHz";
-    d.minValue = 0;
+    d.minValue = -m_inputSampleRate / 2000;
     d.maxValue = m_inputSampleRate / 2000;
-    d.defaultValue = FindPulseTD::m_default_max_freq;
+    d.defaultValue = StatPulse::m_default_max_freq;
     d.isQuantized = false;
     list.push_back(d);
 
@@ -341,12 +261,16 @@ FindPulseTD::getParameterDescriptors() const
 }
 
 float
-FindPulseTD::getParameter(string id) const
+StatPulse::getParameter(string id) const
 {
-    if (id == "plen") {
-        return m_plen;
-    } else if (id == "minsnr") {
-        return 10 * log10(m_min_pulse_SNR);
+    if (id == "acceptsRawSamples") {
+        return m_accept_raw_samples;
+    } else if (id == "minplen") {
+        return m_min_plen;
+    } else if (id == "maxplen") {
+        return m_max_plen;
+    } else if (id == "bkgdlen") {
+        return m_bkgd_len;
     } else if (id == "noisesize") {
         return m_noise_win_size;
     } else if (id == "pulsesep") {
@@ -360,27 +284,27 @@ FindPulseTD::getParameter(string id) const
 }
 
 void
-FindPulseTD::setParameter(string id, float value)
+StatPulse::setParameter(string id, float value)
 {
     if (id == "plen") {
-        FindPulseTD::m_default_plen = m_plen = value;
+        StatPulse::m_default_plen = m_plen = value;
     } else if (id == "minsnr") {
-        FindPulseTD::m_default_min_pulse_SNR_dB =  value;
+        StatPulse::m_default_min_pulse_SNR_dB =  value;
         m_min_pulse_SNR = exp10(value / 10.0);
     } else if (id == "noisesize") {
-        FindPulseTD::m_default_noise_win_size = m_noise_win_size = value;
+        StatPulse::m_default_noise_win_size = m_noise_win_size = value;
     } else if (id == "pulsesep") {
-        FindPulseTD::m_default_min_pulse_sep = m_min_pulse_sep = value;
+        StatPulse::m_default_min_pulse_sep = m_min_pulse_sep = value;
     } else if (id == "minfreq") {
-        FindPulseTD::m_default_min_freq = m_min_freq = value;
+        StatPulse::m_default_min_freq = m_min_freq = value;
     } else if (id == "maxfreq") {
-        FindPulseTD::m_default_max_freq = m_max_freq = value;
+        StatPulse::m_default_max_freq = m_max_freq = value;
     }
 }
 
 
-FindPulseTD::OutputList
-FindPulseTD::getOutputDescriptors() const
+StatPulse::OutputList
+StatPulse::getOutputDescriptors() const
 {
     OutputList list;
 
@@ -399,15 +323,15 @@ FindPulseTD::getOutputDescriptors() const
     return list;
 }
 
-FindPulseTD::FeatureSet
-FindPulseTD::process(const float *const *inputBuffers,
+StatPulse::FeatureSet
+StatPulse::process(const float *const *inputBuffers,
                      Vamp::RealTime timestamp)
 {
     FeatureSet returnFeatures;
 
     if (m_stepSize == 0) {
-	cerr << "ERROR: FindPulseTD::process: "
-	     << "FindPulseTD has not been initialised"
+	cerr << "ERROR: StatPulse::process: "
+	     << "StatPulse has not been initialised"
 	     << endl;
 	return returnFeatures;
     }
@@ -421,7 +345,8 @@ FindPulseTD::process(const float *const *inputBuffers,
         
         float pwr = 0.0;
         for (unsigned short ch = 0; ch < m_channels; ++ch) {
-            float avg = m_dcma[ch].get_average();
+            //float avg = m_dcma[ch].get_average();
+                        float avg = 0.0;
             float dc_corrected = inputBuffers[ch][i] - avg;
             float single_pwr = dc_corrected * dc_corrected;
             m_sample_buf[ch].push_back(dc_corrected);
@@ -448,7 +373,7 @@ FindPulseTD::process(const float *const *inputBuffers,
                 // copy samples from ring buffer to fft input buffer
                 boost::circular_buffer < float > :: iterator b = m_sample_buf[ch].begin();
                 
-                for (int j = 0; j < m_plen_in_samples; ++j, ++b) {
+                for (int j = 0; j < m_plen_samples; ++j, ++b) {
                     m_windowed_fine[ch][j] = (float) *b * m_pulse_window[j];
                 }
                 // perform fft
@@ -457,7 +382,7 @@ FindPulseTD::process(const float *const *inputBuffers,
             // find the max power bin
             
             int bin_low = 1;
-            int bin_high = m_plen_in_samples / 2;
+            int bin_high = m_plen_samples / 2;
             
             float max_power = 0.0;
             int max_bin = -1;
@@ -472,11 +397,11 @@ FindPulseTD::process(const float *const *inputBuffers,
             }
             
             // use a cubic estimator to find the peak frequency estimate using nearby bins
-            bin_low = std::max(1, std::min(m_plen_in_samples / 2 - 4, max_bin - 1));  // avoid the DC bin
+            bin_low = std::max(1, std::min(m_plen_samples / 2 - 4, max_bin - 1));  // avoid the DC bin
             
             float bin_est = -1.0;
             float phase[2] = {0, 0}; // 0: I, 1: Q
-            if (bin_low + 3 <= m_plen_in_samples / 2) {
+            if (bin_low + 3 <= m_plen_samples / 2) {
                 float pwr[4];
                 for (int j = bin_low; j < bin_low + 4; ++j) {
                     pwr[j - bin_low] = 0;
@@ -539,7 +464,7 @@ FindPulseTD::process(const float *const *inputBuffers,
             std::stringstream ss;
             ss.precision(5);
                 
-            ss << " freq: " << (bin_est * ((float) m_inputSampleRate / m_plen_in_samples)) / 1000
+            ss << " freq: " << (bin_est * ((float) m_inputSampleRate / m_plen_samples)) / 1000
                << " kHz; SNR: " << 10 * log10(m_pulse_finder.pulse_SNR())
                << " dB; sig: " << 10 * log10(m_pulse_finder.pulse_signal() * m_probe_scale)
                << " dB; noise: " << 10 * log10(m_pulse_finder.pulse_noise() * m_probe_scale)
@@ -566,15 +491,15 @@ FindPulseTD::process(const float *const *inputBuffers,
     return returnFeatures;
 }
 
-FindPulseTD::FeatureSet
-FindPulseTD::getRemainingFeatures()
+StatPulse::FeatureSet
+StatPulse::getRemainingFeatures()
 {
     return FeatureSet();
 }
 
-float FindPulseTD::m_default_plen = 2.5; // milliseconds
-float FindPulseTD::m_default_min_pulse_SNR_dB = 5; // dB
-int FindPulseTD::m_default_noise_win_size = 5; // pulse lengths
-int FindPulseTD::m_default_min_pulse_sep = 1; //pulse lengths
-float FindPulseTD::m_default_min_freq = 2.0; // 2 kHz
-float FindPulseTD::m_default_max_freq = 24.0; // 24 kHz
+float StatPulse::m_default_plen = 2.5; // milliseconds
+float StatPulse::m_default_min_pulse_SNR_dB = 5; // dB
+int StatPulse::m_default_noise_win_size = 5; // pulse lengths
+int StatPulse::m_default_min_pulse_sep = 1; //pulse lengths
+float StatPulse::m_default_min_freq = 2.0; // 2 kHz
+float StatPulse::m_default_max_freq = 24.0; // 24 kHz
