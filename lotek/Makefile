@@ -48,7 +48,7 @@ $(PLUGIN): $(PLUGIN_CODE_OBJECTS) lotek-plugins.o
 
 lotek-plugins.o: $(PLUGIN_CODE_OBJECTS) lotek-plugins.cpp
 
-SNRZFindPulse.o: SpectralPulseFinder.h SNRZFindPulse.h FreqEstimator.h
+SNRZFindPulse.o: SpectralPulseFinder.h SNRZFindPulse.h FreqEstimator.h FixedPulseDetector.h
 
 FreqEstimator.o: FreqEstimator.h
 
@@ -101,10 +101,10 @@ testAccordion: Accordion.h testAccordion.cpp
 testMovingAverager: MovingAverager.h testMovingAverager.cpp
 	g++ $(CXXFLAGS) -o testMovingAverager testMovingAverager.cpp
 
-testSlidingSpectrum: SlidingSpectrum.h testSlidingSpectrum.cpp
-	g++ $(CXXFLAGS) -o testSlidingSpectrum SlidingSpectrum.cpp testSlidingSpectrum.cpp -lfftw3f
+testSlidingSpectrum: SlidingSpectrum.h testSlidingSpectrum.o SlidingSpectrum.o
+	g++ $(CXXFLAGS) -o testSlidingSpectrum SlidingSpectrum.o testSlidingSpectrum.cpp -lfftw3f
 
-testSpectralPulseFinder: SpectralPulseFinder.h testSpectralPulseFinder.cpp 
+testSpectralPulseFinder: SpectralPulseFinder.h testSpectralPulseFinder.cpp SlidingSpectrum.o
 	g++ $(CXXFLAGS) -o testSpectralPulseFinder testSpectralPulseFinder.cpp SlidingSpectrum.o -lfftw3f
 
 clean:

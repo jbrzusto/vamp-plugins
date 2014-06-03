@@ -25,40 +25,43 @@ template < typename TYPE >
 class FixedPulseDetector {
 public:
   
-  FixedPulseDetector(size_t width, TYPE min_SNR, double min_z) :
+  FixedPulseDetector(size_t width, size_t bkgd_width, TYPE min_SNR, double min_z) :
     width(width),
-    z_scale(sqrt((2.0 * width - 1) / (2.0 * width))),
+    bkgd_width(bkgd_width),
+    z_scale(1.0 / sqrt(2.0 * bkgd_width - 1.0)),
     min_SNR(min_SNR),
-    min_z(min_z / z_scale),  // pre-scale to simplify SD calculation lator
-    min_needed(2 * width + 1),
-    ma_count(width),
-    ma_count_from(width),
-    win(width),
-    win2(width),
-    ma_buff(3 * width + 1),
-    ma_buff2(3 * width + 1),
-    pk (width, true, false) // only look for local maxima
+    min_z(min_z * z_scale),  // pre-scale to simplify SD calculation lator
+    min_needed(width + bkgd_width + 1),
+    winma(width),
+    bkgdma(bkgd_width),
+    bkgd2ma(bkgd_width),
+    ma_win_buff(2 * bkgd_width + width + 1),
+    ma_bkgd_buff(2 * bkgd_width + width + 1),
+    ma_bkgd2_buff(2 * bkgd_width + width + 1),
+    pk (bkgd_width, true, false) // only look for local maxima
   {
   };
   
   bool operator() (const TYPE & d) { 
     // process a value from the data stream; return true if a pulse was detected
-    win(d);
+    winma(d);
+    bkgdma(d);
     TYPE d2 = d * d;
-    if (win2(d2)) {
+    if (bkgd2ma(d2)) {
       // add moving averages of samples and squares to the buffer
-      double ma_right = win;
-      ma_buff.push_back(ma_right);
-      double ma_right2 = win2;
-      ma_buff2.push_back(ma_right2);
+      ma_win_buff.push_back(winma);
+      double ma_right = bkgdma;
+      ma_bkgd_buff.push_back(ma_right);
+      double ma_right2 = bkgd2ma;
+      ma_bkgd2_buff.push_back(ma_right2);
 
-      if (ma_buff.size() >= min_needed) {
+      if (ma_win_buff.size() >= min_needed) {
         // we have enough moving window averages buffered so that the left
         // background window is the first ma in the buffer, and the middle
         // (signal) window is also there.
 
-        double ma_left = ma_buff[ma_buff.size() - 2 * width - 1];
-        double ma_sig = ma_buff[ma_buff.size() - width - 1];
+        double ma_left = ma_bkgd_buff[ma_bkgd_buff.size() - width - bkgd_width - 1];
+        double ma_sig = ma_win_buff[ma_win_buff.size() - bkgd_width - 1];
         double diff = ma_sig - (ma_right + ma_left) / 2.0;
 
         // send the difference through the peak finder
@@ -72,14 +75,14 @@ public:
 
           was_big = SNR() >= min_SNR;
 
-          // do the more expensive Z-score calculation
           // the formula for bksd below would need to be multiplied
           // by sqrt((N-1)/N) to be correct, but we have
           // already divided min_z by that factor so that
           // the threshold comparison is correct.
           
           double pkbkgd = bkgd();
-          double bksd = sqrt(bkgd2() - pkbkgd*pkbkgd); // * sqrt((2*width-1)/(2*width))
+          double bksd = sqrt((bkgd2() - pkbkgd * pkbkgd));
+
           last_z = (signal() - pkbkgd) / bksd;
 
           was_unlikely = last_z >= min_z;
@@ -94,19 +97,19 @@ public:
   TYPE signal () {
     // return the mean of the values in the central (signal) window
     // only valid immediately after a call to operator() returns true
-    return ma_buff[width];
+    return ma_win_buff[width];
   };
 
   TYPE bkgd () {
     // return the mean of the values in the left and right background windows
     // only valid immediately after a call to operator() returns true
-    return (ma_buff[0] + ma_buff[2 * width]) / 2.0;
+    return (ma_bkgd_buff[0] + ma_bkgd_buff[width + bkgd_width]) / 2.0;
   };
 
   TYPE bkgd2 () {
     // return the mean of the squares of values in left and right background windows
     // only valid immediately after a call to operator() returns true
-    return (ma_buff2[0] + ma_buff2[2 * width]) / 2.0;
+    return (ma_bkgd2_buff[0] + ma_bkgd2_buff[width + bkgd_width]) / 2.0;
   };
 
   double SNR () {
@@ -138,30 +141,31 @@ public:
     // how many samples back from most recently processed sample is first sample in
     // detected pulse?  
     // only valid immediately after a call to operator() returns true
-    return 3 * width - 1;
+    return 2 * bkgd_width + width - 1;
   };
 
   double Z() {
     // return z score for the most recently detected pulse
-    return last_z * z_scale;
+    return last_z / z_scale;
   };
 
 protected:
   size_t width;
-  double z_scale; // sqrt((2 * width) / (2 * width - 1))
+  size_t bkgd_width; // size of bkgd window on each side of pulse
+  double z_scale; // convert simple formula to correct formula!
   TYPE min_SNR;  // minimum signal to noise ratio in linear units
   double min_z;
   size_t min_needed;
-  size_t ma_count;
-  size_t ma_count_from;
   double last_z; // quantile at last detected edge
   bool was_big; // true if difference between signal and bkgd was signficant
   bool was_unlikely; // true if the difference between signal and bkgd was low probability
  
-  MovingAverager < TYPE, double > win; // moving average of most recent width samples
-  MovingAverager < TYPE, double > win2; // moving average of squares of most recent width samples
-  boost::circular_buffer < TYPE > ma_buff; // buffer of recent moving averages of samples values, so we need only compute the average of the right window, and lookup the average of the left window, which was computed originally when those samples were in the right window
-  boost::circular_buffer < TYPE > ma_buff2; // buffer of recent moving averages of samples squares
+  MovingAverager < TYPE, double > winma; // moving average of most recent width samples
+  MovingAverager < TYPE, double > bkgdma; // moving average of most recent bkgd sampl
+  MovingAverager < TYPE, double > bkgd2ma; // moving average of squares of most recent bkgd samples
+  boost::circular_buffer < TYPE > ma_win_buff; // buffer of recent moving averages of samples values, so we need only compute the average of the right window, and lookup the average of the left window, which was computed originally when those samples were in the right window
+  boost::circular_buffer < TYPE > ma_bkgd_buff; // buffer of recent moving averages of samples in bkgd window
+  boost::circular_buffer < TYPE > ma_bkgd2_buff; // buffer of recent moving averages of samples squares
   PeakFinder < double > pk; // find peaks in the difference between right and left windows
   
 };

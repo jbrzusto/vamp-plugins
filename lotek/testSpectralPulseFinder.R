@@ -9,6 +9,9 @@
 ## pulse width (samples)
 plen = 100
 
+## bkgd width (samples)
+bkgd = 100
+
 ## window size
 n = 10
 
@@ -32,23 +35,25 @@ noiseamp = 0.01
 
 sigamp = 0.5
 
-bkgd = noiseamp * (rnorm(nw * n) + 1i * rnorm(nw * n))
+sig = noiseamp * (rnorm(nw * n) + 1i * rnorm(nw * n))
 
 ## 5 random pulses of different offset frequency
 
 for (i in 1:5) {
     p = sigamp * exp(2*pi*1i*(0:(plen-1))/plen*(2.567 * i))
     rep =  300 + 1000 * (i-1) + seq(along=p)
-    bkgd [rep] = p + bkgd[rep]
+    sig [rep] = p + sig[rep]
 }
 
 ## send to testSlidingSpectrum program
 
 tf = tempfile()
 
-p = pipe(sprintf("./testSpectralPulseFinder %d %d %d %d %d %d %f %f > %s", plen, n, n * (pf - 1), overlap, 1, n * pf, 10, 8, tf), "w")
+cmd = sprintf("./testSpectralPulseFinder %d %d %d %d %d %d %d %f %f > %s", plen, bkgd, n, n * (pf - 1), overlap, 1, n * pf, 10, 8, tf)
 
-cat (c(rbind(Re(bkgd),Im(bkgd))), file=p)
+p = pipe(cmd, "w")
+
+cat (c(rbind(Re(sig),Im(sig))), file=p)
 
 close(p)
 

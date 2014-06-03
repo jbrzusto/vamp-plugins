@@ -105,20 +105,21 @@ protected:
     // parameters
     
     float m_plen;        // minimum length of pulse we're trying to detect, in ms
-
+    float m_bkgd;        // size of background window for comparison, in ms
     int m_fft_win;
     int m_fft_pad;
     int m_fft_overlap;
 
-    double m_min_Z; // minimum Z score of pulse
-    double m_min_SNR_dB; // minimum sig to bg ratio (dB)
-
+    float m_min_Z; // minimum Z score of pulse
+    float m_min_SNR_dB; // minimum sig to bg ratio (dB)
+    
     float m_min_freq;  // only accept pulses whose offset frequency is at least this (kHz)
     float m_max_freq;  // only accept pulses from bins whose offset frequency is at most this (kHz)
 
     
     // parameter defaults
     static float m_default_plen;
+    static float m_default_bkgd;
     static int m_default_fft_win;
     static int m_default_fft_pad;
     static int m_default_fft_overlap;
@@ -130,7 +131,8 @@ protected:
     // internal registers
     int m_num_bins;  // number of FFT bins, including zero-padding bins
     int m_num_finders; // number of FFT bins we're actually looking for pulses in
-    int m_plen_samples;
+    int m_plen_samples; // length of pulse in samples
+    int m_bkgd_samples; // length of each (left, right) bkgd window, in samples
     float m_power_scale_dB; // add this to fourier bin power to get dB
 
     bool m_batch_host; // does the host want batch output? (e.g. vamp-alsa-host style instead of audacity?)

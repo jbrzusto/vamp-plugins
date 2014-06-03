@@ -41,6 +41,7 @@ public:
     //     so the range minbin = -3, maxbin = 3 is permitted
 
     SpectralPulseFinder (int width,
+                         int bkgd,
                          int win_size, 
                          int pad, 
                          int overlap,
@@ -49,6 +50,7 @@ public:
                          double min_SNR_dB,
                          double min_z) : 
         width (width),
+        bkgd (bkgd),
         win_size (win_size),
         pad (pad), 
         overlap (overlap),
@@ -67,10 +69,13 @@ public:
         // that will cover the samples in the time-domain pulse, taking into
         // account window overlap.  Padding does not need to be considered here.
 
-        int width_in_spectrum = round(1.0 + (width - win_size) / (double) (win_size - overlap));
+        width_in_spectrum = round(1.0 + (width - win_size) / (double) (win_size - overlap));
+
+        bkgd_in_spectrum = round(1.0 + (bkgd - win_size) / (double) (win_size - overlap));
 
         for (int i = 0; i < numbins; ++i) 
             pd.push_back(FixedPulseDetector < float > ( width_in_spectrum,
+                                                        bkgd_in_spectrum,
                                                         exp10(min_SNR_dB / 10.0), // min_SNR in linear units
                                                         min_z
                                                         ));
@@ -152,12 +157,13 @@ public:
         // how many samples back from most recently processed sample is first sample in
         // detected pulse?  
         // only valid immediately after a call to operator() returns true
-        return 3 * width - 1;
+        return (width_in_spectrum + 2 * bkgd_in_spectrum) * (win_size - overlap);
     };
        
     protected:
 
     size_t width; // samples per pulse
+    size_t bkgd; // samples in the (half) background window
     int win_size; // samples per FFT (not including zero padding)
     int pad;     // number of zero samples to pad with (for tighter freq. estimation)
     int overlap; // overlap between consecutive FFT windows, in samples
@@ -167,6 +173,9 @@ public:
 
     double min_SNR_dB; // minimum signal to noise ratio for a pulse
     double min_z; // maximum probability for a pulse
+
+    int width_in_spectrum; // width of pulse, in numbers of FFTs
+    int bkgd_in_spectrum; // width of background, in numbers of FFTs
 
     SlidingSpectrum ss;
 

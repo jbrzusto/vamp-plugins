@@ -56,6 +56,7 @@ SNRZFindPulse::SNRZFindPulse(float inputSampleRate) :
     m_stepSize(0),
     m_blockSize(0),
     m_plen(m_default_plen),
+    m_bkgd(m_default_bkgd),
     m_fft_win(m_default_fft_win),
     m_fft_pad(m_default_fft_pad),
     m_fft_overlap(m_default_fft_overlap),
@@ -125,6 +126,7 @@ SNRZFindPulse::initialise(size_t channels, size_t stepSize, size_t blockSize)
     m_blockSize = blockSize;
 
     m_plen_samples = (m_plen / 1000.0) * m_inputSampleRate;
+    m_bkgd_samples = (m_bkgd / 1000.0) * m_inputSampleRate;
     m_num_bins = m_fft_win * m_fft_pad;
     m_power_scale_dB = - 20 * log10(m_num_bins);
 
@@ -140,11 +142,12 @@ SNRZFindPulse::initialise(size_t channels, size_t stepSize, size_t blockSize)
     
     m_num_finders = m_max_bin - m_min_bin + 1;
 
-    m_spf = new SpectralPulseFinder (m_plen_samples, m_fft_win, m_fft_pad, m_fft_overlap, m_min_bin, m_max_bin, m_min_SNR_dB, m_min_Z);
+    m_spf = new SpectralPulseFinder (m_plen_samples, m_bkgd_samples, m_fft_win, m_fft_pad, m_fft_overlap, m_min_bin, m_max_bin, m_min_SNR_dB, m_min_Z);
 
     m_fest = new FreqEstimator (m_plen_samples);
 
-    m_sample_buf = boost::circular_buffer < std::complex < float > > (3 * m_plen_samples);
+    //    m_sample_buf = boost::circular_buffer < std::complex < float > > (m_plen_samples + 2 * m_bkgd_samples);
+    m_sample_buf = boost::circular_buffer < std::complex < float > > (m_spf->location());
 
     return true;
 }
@@ -167,6 +170,16 @@ SNRZFindPulse::getParameterDescriptors() const
     d.minValue = 0.1;
     d.maxValue = 500;
     d.defaultValue = SNRZFindPulse::m_default_plen;
+    d.isQuantized = false;
+    list.push_back(d);
+
+    d.identifier = "bkgd";
+    d.name = "Background Window Length (single-sided; unit: milliseconds)";
+    d.description = "Duration of the background window on each side of the pulse";
+    d.unit = "milliseconds";
+    d.minValue = 0.1;
+    d.maxValue = 500;
+    d.defaultValue = SNRZFindPulse::m_default_bkgd;
     d.isQuantized = false;
     list.push_back(d);
 
@@ -250,6 +263,8 @@ SNRZFindPulse::getParameter(string id) const
 {
     if (id == "plen") {
         return m_plen;
+    } else if (id == "bkgd") {
+        return m_bkgd;
     } else if (id == "fftwin") {
         return m_fft_win;
     } else if (id == "fftpad") {
@@ -274,6 +289,8 @@ SNRZFindPulse::setParameter(string id, float value)
 {
     if (id == "plen") {
         SNRZFindPulse::m_default_plen = m_plen = value;
+    } else if (id == "bkgd") {
+        SNRZFindPulse::m_default_bkgd = m_bkgd = value;
     } else if (id == "fftwin") {
         SNRZFindPulse::m_default_fft_win = m_fft_win = value;
     } else if (id == "fftpad") {
@@ -377,10 +394,15 @@ SNRZFindPulse::process(const float *const *inputBuffers,
                 
                 float freq = m_fest->get(a1.first, n1, a2.first, n2);
                 
-                if (fabs(freq - (i + m_min_bin) * m_plen_samples / (float) m_num_bins) > 2)
+                if (sig > -40.0 && fabs(freq - (i + m_min_bin) * m_plen_samples / (float) m_num_bins) > 2) {
+                    std::cerr << "Skipping pulse at " << ts;
                     continue; // don't use this pulse - the main energy is in another bin
+                }
 
                 freq *= m_inputSampleRate / (1000.0 * m_plen_samples);
+
+                if (freq < m_min_freq || freq > m_max_freq)
+                    continue;
                
                 if (m_batch_host) {
                     feature.values.push_back(freq);
@@ -411,6 +433,7 @@ SNRZFindPulse::getRemainingFeatures()
 }
 
 float SNRZFindPulse::m_default_plen = 2.5; // milliseconds
+float SNRZFindPulse::m_default_bkgd = 12.5; // milliseconds
 int SNRZFindPulse::m_default_fft_win = 48; // 0.5 milliseconds @ 192kHz
 int SNRZFindPulse::m_default_fft_pad = 1; // 
 int SNRZFindPulse::m_default_fft_overlap = 24; 
