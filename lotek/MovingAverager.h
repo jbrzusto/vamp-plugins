@@ -1,6 +1,6 @@
 /* -*- mode: c++ -*- */
 /*
-    Copyright 2011-2014 John Brzustowski
+    Copyright 2011 John Brzustowski
 
     Licence: GPL version 2 or later
 */
@@ -9,7 +9,6 @@
 #define _MOVING_AVERAGER_H
 
 #include <boost/circular_buffer.hpp>
-#include "KahanSum.h"
 
 template < typename DATATYPE, typename AVGTYPE > 
 class MovingAverager {
@@ -25,27 +24,33 @@ class MovingAverager {
     buf.clear();
   }
 
-  operator AVGTYPE () { // get the moving average
-    if (buf.empty())
-      throw std::runtime_error("No data in buffer");
-    return m_total / buf.size();
+  bool have_average () {  // is a moving average available yet?
+    return buf.full();
+  }
+
+  AVGTYPE get_average () { // get the moving average
+    if (! buf.full())
+      throw std::runtime_error("Not enough data for moving average");
+    return m_total / buf.capacity();
   };
 
-  bool operator() (const DATATYPE & d) { 
-    // process a value from the data stream
-    // return true if a (full window) moving average is available
-    // (always true once we've seen n samples)
+  AVGTYPE get_buffer_average () { // get the average of items seen so far
+    if (buf.empty())
+      throw std::runtime_error("No data in buffer");
+    return m_total / (static_cast < AVGTYPE > (buf.size()));
+  };
+
+  void process(DATATYPE d) { // process a value from the data stream
     if (buf.full())
       m_total -= buf.front();
     buf.push_back(d);
     m_total += d;
-    return buf.full();
   }
 
 
  protected:
   boost::circular_buffer < DATATYPE > buf;
-  KahanSum < AVGTYPE > m_total;
+  AVGTYPE m_total;
 };
 
 #endif //  _MOVING_AVERAGER_H

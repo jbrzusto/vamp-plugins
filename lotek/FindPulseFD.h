@@ -47,7 +47,7 @@
 
 #include <boost/circular_buffer.hpp>
 #include "vamp-sdk/Plugin.h"
-#include "ProbPulseFinder.h"
+#include "PulseFinder.h"
 #include "MovingAverager.h"
 #include <complex>
 #include <fftw3.h>
@@ -109,7 +109,7 @@ protected:
     // parameters
     float m_plen;        // length of pulse we're trying to detect, in ms
     int m_plen_in_samples; // length of pulse, measured in samples
-    float m_min_pulse_Z; // minimum pulse power to be accepted (linear units)
+    float m_min_pulse_SNR; // minimum pulse power to be accepted (linear units)
     int m_fft_win_size;  // number of consecutive samples in non-overlapping FFT windows
     int m_noise_win_size; // size of noise window on each side of pulse, in multiples of pulse length
     int m_min_pulse_sep; // minimum separation between pulses, in multiples of pulse length
@@ -118,7 +118,7 @@ protected:
 
     // parameter defaults
     static float m_default_plen;
-    static float m_default_min_pulse_Z;
+    static float m_default_min_pulse_SNR_dB;
     static int   m_default_fft_win_size;
     static int   m_default_noise_win_size;
     static int   m_default_min_pulse_sep;
@@ -153,7 +153,7 @@ protected:
     bool m_odd_phase_window_is_bogus; // keep track of whether we're on the first odd-phase window, which has only half
     // the data and so is not used
 
-    std::vector < ProbPulseFinder < double > > m_freq_bin_pulse_finder;
+    std::vector < PulseFinder < double > > m_freq_bin_pulse_finder;
 
     MovingAverager < float, float > m_dcma[2]; // moving averager for removing DC on each channel
 

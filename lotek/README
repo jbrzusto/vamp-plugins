@@ -1,3 +1,9 @@
+2014: improved pulse finder; still called 'findpulsefdbatch' internally,
+but source is in file SNRZFindPulse.h/cpp etc.
+
+The 2013 version is available internally as 'findpulsefdbatch_2013_final'
+
+2013_final:
 Files here build lotek-plugins.so, which contains FindPulseFDBatch for
 use with vamp-alsa-host, and FindPulseFD for use with audacity.  The
 code is identical except for packaging.

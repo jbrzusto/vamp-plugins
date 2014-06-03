@@ -143,7 +143,7 @@ protected:
     
     boost::circular_buffer < std::complex < float > > m_sample_buf; 
 
-    //    MovingAverager < std::complex < float > , std::complex < double > > m_dcma; // moving averager for removing (slow) DC
+    //    KahanMovingAverager < std::complex < float > , std::complex < double > > m_dcma; // moving averager for removing (slow) DC
 
     // pulse detector
     SpectralPulseFinder *m_spf;

@@ -17,7 +17,7 @@
 #define _FIXED_PULSE_DETECTOR_H
 
 #include <boost/circular_buffer.hpp>
-#include "MovingAverager.h"
+#include "KahanMovingAverager.h"
 #include "PeakFinder.h"
 
 template < typename TYPE >
@@ -169,9 +169,9 @@ protected:
   bool was_big; // true if difference between signal and bkgd was signficant
   bool was_unlikely; // true if the difference between signal and bkgd was low probability
  
-  MovingAverager < TYPE, double > winma; // moving average of most recent width samples
-  MovingAverager < TYPE, double > bkgdma; // moving average of most recent bkgd sampl
-  MovingAverager < TYPE, double > bkgd2ma; // moving average of squares of most recent bkgd samples
+  KahanMovingAverager < TYPE, double > winma; // moving average of most recent width samples
+  KahanMovingAverager < TYPE, double > bkgdma; // moving average of most recent bkgd sampl
+  KahanMovingAverager < TYPE, double > bkgd2ma; // moving average of squares of most recent bkgd samples
   boost::circular_buffer < TYPE > ma_win_buff; // buffer of recent moving averages of samples values, so we need only compute the average of the right window, and lookup the average of the left window, which was computed originally when those samples were in the right window
   boost::circular_buffer < TYPE > ma_bkgd_buff; // buffer of recent moving averages of samples in bkgd window
   boost::circular_buffer < TYPE > ma_bkgd2_buff; // buffer of recent moving averages of samples squares

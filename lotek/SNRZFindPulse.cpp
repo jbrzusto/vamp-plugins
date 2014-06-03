@@ -96,7 +96,11 @@ SNRZFindPulse::~SNRZFindPulse()
 string
 SNRZFindPulse::getIdentifier() const
 {
-    return "SNRZFindPulse";
+    // note: to allow use by legacy deployment files,
+    // we give this the same name as was used by the very
+    // different previous incarnation into early 2014
+
+    return "findpulsefdbatch";
 }
 
 string

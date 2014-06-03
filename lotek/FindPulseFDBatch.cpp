@@ -184,7 +184,7 @@ FindPulseFDBatch::~FindPulseFDBatch()
 string
 FindPulseFDBatch::getIdentifier() const
 {
-    return "findpulsefdbatch";
+    return "findpulsefdbatch_2013_final";
 }
 
 string

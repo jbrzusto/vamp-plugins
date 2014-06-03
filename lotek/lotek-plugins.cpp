@@ -40,24 +40,15 @@
 #include "vamp/vamp.h"
 #include "vamp-sdk/PluginAdapter.h"
 
-/*
-#include "FindPulseFD.h"
-#include "FindPulseFDBatch.h"
-#include "FindPulseTD.h"
-#include "FindPulseTDBatch.h"
-#include "FindPulse.h"
-#include "NewFindPulse.h"
-*/
-#include "SNRZFindPulse.h"
 
-/*
-static Vamp::PluginAdapter<FindPulseFD> findPulseFDAdapter;
-static Vamp::PluginAdapter<FindPulseFDBatch> findPulseFDBatchAdapter;
-static Vamp::PluginAdapter<FindPulseTD> findPulseTDAdapter;
-static Vamp::PluginAdapter<FindPulseTDBatch> findPulseTDBatchAdapter;
-static Vamp::PluginAdapter<NewFindPulse> newFindPulseAdapter;
-*/
+#include "SNRZFindPulse.h"
+#include "FindPulseFDBatch.h"
+#include "FindPulseFD.h"
+
 static Vamp::PluginAdapter<SNRZFindPulse> SNRZFindPulseAdapater;
+static Vamp::PluginAdapter<FindPulseFDBatch> findPulseFDBatchAdapter;
+static Vamp::PluginAdapter<FindPulseFD> findPulseFDAdapter;
+
 const VampPluginDescriptor *vampGetPluginDescriptor(unsigned int version,
                                                     unsigned int index)
 {
@@ -65,12 +56,8 @@ const VampPluginDescriptor *vampGetPluginDescriptor(unsigned int version,
 
     switch (index) {
     case  0: return SNRZFindPulseAdapater.getDescriptor();
-        /*
     case  1: return findPulseFDBatchAdapter.getDescriptor();
-    case  2: return findPulseTDAdapter.getDescriptor();
-    case  3: return findPulseTDBatchAdapter.getDescriptor();
-    case  4: return newFindPulseAdapter.getDescriptor();
-        */
+    case  2: return findPulseFDAdapter.getDescriptor();
     default: return 0;
     }
 }

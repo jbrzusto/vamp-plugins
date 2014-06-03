@@ -1,4 +1,4 @@
-#include "MovingAverager.h"
+#include "KahanMovingAverager.h"
 #include <iostream>
 #include <cstdio>
 #include <stdint.h>
@@ -12,7 +12,7 @@ main (int argc, char *argv[])
 {
   if (argc != 3) {
     std::cout << 
-"Usage: testMovingAverager WINSIZE NUMSAMPLES\n\
+"Usage: testKahanMovingAverager WINSIZE NUMSAMPLES\n\
 calculate a running moving aveerage using a window of size WINSIZE\n\
 in a stream of NUMSAMPLES random floating point numbers in [0, 1].\n\
 Specify NUMSAMPLES as 0 to read samples from stdin.\n\
