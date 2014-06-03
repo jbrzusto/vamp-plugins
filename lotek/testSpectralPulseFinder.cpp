@@ -11,9 +11,9 @@
 int
 main (int argc, char *argv[])
 {
-  if (argc < 10 || argc > 11) {
+  if (argc < 11 || argc > 12) {
     std::cout << 
-"Usage: testSpectralPulseFinder WIDTH BKGDWIDTH WINSIZE PAD OVERLAP MINBIN MAXBIN MINSNRDB MINZ [FILE]\n\
+"Usage: testSpectralPulseFinder WIDTH BKGDWIDTH WINSIZE PAD OVERLAP MINBIN MAXBIN MINSNRDB MINZ MAXNOISEZ [FILE]\n\
 Find fixed-width pulses in the spectrum of an input stream of complex numbers.\n\
 WIDTH: width of pulses to find, in samples\n\
 BKGWIDTH: width of background window on each side, in samples\n\
@@ -25,6 +25,7 @@ MAXBIN: maximum bin number of interest in finding pulses (-WINSIZE / 2 ... WINSI
 MINSNRDB: min signal to noise ratio of a pulse, in dB\n\
 MINZ: min z-score for a pulse's sig - noise value.\n\
 A pulse is accepted if it satisfies either the MINSNRDB or the MINZ criterion.\n\
+MAXNOISEZ: max noise (dB) at which the MINZ criterion is used.\n\
 Data are read from FILE, if specified, or stdin as R1 I1 R2 I2 R3 I3 ...\n\
 (i.e. interleaved real and imaginary parts of each sample).\n";
       exit(1);
@@ -39,10 +40,11 @@ Data are read from FILE, if specified, or stdin as R1 I1 R2 I2 R3 I3 ...\n\
   int maxbin = atoi(argv[7]);
   double minsnrdb = atof(argv[8]);
   double minz = atof(argv[9]);
+  double maxnoisez = atof(argv[10]);
 
-  std::istream * in = (argc > 10) ? new std::ifstream(argv[10]) : & std::cin;
+  std::istream * in = (argc > 11) ? new std::ifstream(argv[11]) : & std::cin;
 
-  SpectralPulseFinder spf (width, bkgd, winsize, pad, overlap, minbin, maxbin, minsnrdb, minz);
+  SpectralPulseFinder spf (width, bkgd, winsize, pad, overlap, minbin, maxbin, minsnrdb, minz, maxnoisez);
 
   unsigned long long count = 0;
 
@@ -61,6 +63,6 @@ Data are read from FILE, if specified, or stdin as R1 I1 R2 I2 R3 I3 ...\n\
     }
     ++count;
   }
-  if (argc > 9)
+  if (argc > 11)
     delete in;
 }

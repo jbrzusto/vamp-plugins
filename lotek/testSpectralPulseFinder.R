@@ -49,7 +49,7 @@ for (i in 1:5) {
 
 tf = tempfile()
 
-cmd = sprintf("./testSpectralPulseFinder %d %d %d %d %d %d %d %f %f > %s", plen, bkgd, n, n * (pf - 1), overlap, 1, n * pf, 10, 8, tf)
+cmd = sprintf("./testSpectralPulseFinder %d %d %d %d %d %d %d %f %f %f > %s", plen, bkgd, n, n * (pf - 1), overlap, 1, n * pf, 10, 8, -40, tf)
 
 p = pipe(cmd, "w")
 

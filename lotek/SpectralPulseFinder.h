@@ -20,6 +20,7 @@
 #include <map>
 #include <complex>
 
+#include "vamp-plugins-common.h"
 #include "SlidingSpectrum.h"
 #include "FixedPulseDetector.h"
 
@@ -48,7 +49,8 @@ public:
                          int minbin,
                          int maxbin,
                          double min_SNR_dB,
-                         double min_z) : 
+                         double min_z,
+                         double max_noise_for_Z) : 
         width (width),
         bkgd (bkgd),
         win_size (win_size),
@@ -59,6 +61,7 @@ public:
         numbins (maxbin - minbin + 1),
         min_SNR_dB (min_SNR_dB),
         min_z (min_z),
+        max_noise_for_Z (max_noise_for_Z),
         ss(win_size, pad, overlap),
         pd(),
         pulsebin()
@@ -77,7 +80,8 @@ public:
             pd.push_back(FixedPulseDetector < float > ( width_in_spectrum,
                                                         bkgd_in_spectrum,
                                                         exp10(min_SNR_dB / 10.0), // min_SNR in linear units
-                                                        min_z
+                                                        min_z,
+                                                        max_noise_for_Z
                                                         ));
     };
 
@@ -173,6 +177,7 @@ public:
 
     double min_SNR_dB; // minimum signal to noise ratio for a pulse
     double min_z; // maximum probability for a pulse
+    double max_noise_for_Z; // maximum noise level at which z score is effective
 
     int width_in_spectrum; // width of pulse, in numbers of FFTs
     int bkgd_in_spectrum; // width of background, in numbers of FFTs

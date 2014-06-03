@@ -25,12 +25,13 @@ template < typename TYPE >
 class FixedPulseDetector {
 public:
   
-  FixedPulseDetector(size_t width, size_t bkgd_width, TYPE min_SNR, double min_z) :
+  FixedPulseDetector(size_t width, size_t bkgd_width, TYPE min_SNR, double min_z, double max_noise_for_Z) :
     width(width),
     bkgd_width(bkgd_width),
-    z_scale(1.0 / sqrt(2.0 * bkgd_width - 1.0)),
+    z_scale(sqrt(2.0 * bkgd_width - 1.0)),
     min_SNR(min_SNR),
-    min_z(min_z * z_scale),  // pre-scale to simplify SD calculation lator
+    min_z(min_z / z_scale),  // pre-scale to simplify SD calculation lator
+    max_noise_for_Z(max_noise_for_Z),
     min_needed(width + bkgd_width + 1),
     winma(width),
     bkgdma(bkgd_width),
@@ -75,18 +76,25 @@ public:
 
           was_big = SNR() >= min_SNR;
 
-          // the formula for bksd below would need to be multiplied
-          // by sqrt((N-1)/N) to be correct, but we have
-          // already divided min_z by that factor so that
-          // the threshold comparison is correct.
-          
           double pkbkgd = bkgd();
-          double bksd = sqrt((bkgd2() - pkbkgd * pkbkgd));
-
-          last_z = (signal() - pkbkgd) / bksd;
-
-          was_unlikely = last_z >= min_z;
-
+          if (pkbkgd <= max_noise_for_Z) {
+            //
+            // low noise environment, so look for weaker pulses
+            // by using the 'Z score' (signal - noise) / (SE noise)
+            //
+            // the formula for bkse below would need to be divided by
+            // by sqrt(N-1) to be correct (and so last_z should be
+            // multiplied by it) but we have already divided min_z by
+            // that factor so that the threshold comparison is
+            // correct.
+          
+            double bkse = sqrt((bkgd2() - pkbkgd * pkbkgd));
+            last_z = (signal() - pkbkgd) / bkse;
+            was_unlikely = last_z >= min_z;
+          } else {
+            last_z = 0;
+            was_unlikely = false;
+          }
           return was_unlikely || was_big;
         }
       }
@@ -146,15 +154,16 @@ public:
 
   double Z() {
     // return z score for the most recently detected pulse
-    return last_z / z_scale;
+    return last_z * z_scale;
   };
 
 protected:
   size_t width;
   size_t bkgd_width; // size of bkgd window on each side of pulse
-  double z_scale; // convert simple formula to correct formula!
+  double z_scale; // multiple to convert simple z-score formula to correct formula!
   TYPE min_SNR;  // minimum signal to noise ratio in linear units
   double min_z;
+  double max_noise_for_Z; // maximum noise at which a pulse can be accepted on Z score alone (i.e. ignoring SNR)
   size_t min_needed;
   double last_z; // quantile at last detected edge
   bool was_big; // true if difference between signal and bkgd was signficant

@@ -1,4 +1,4 @@
-/* -*- mode:c++; c-basic-offset: 4 indent-tabs-mode: nil -*-  vi:set ts=8 sts=4 sw=4: */
+ /* -*- mode:c++; c-basic-offset: 4 indent-tabs-mode: nil -*-  vi:set ts=8 sts=4 sw=4: */
 
 /*
     Vamp
@@ -47,16 +47,12 @@
 #define _SNR_Z_PULSE_PLUGIN_H_
 
 #include "vamp-sdk/Plugin.h"
+#include "vamp-plugins-common.h"
 #include "SpectralPulseFinder.h"
 #include "FreqEstimator.h"
 #include <complex>
 #include <cmath>
 #include <sstream>
-
-#ifdef MINGW
-#define exp10(X) powf(10, X)
-#define fftw_free(X) fftwf_free(X)
-#endif
 
 /**
  * Look for fixed-width pulses in spectrum using SNR and Z-score criteria
@@ -112,7 +108,7 @@ protected:
 
     float m_min_Z; // minimum Z score of pulse
     float m_min_SNR_dB; // minimum sig to bg ratio (dB)
-    
+    float m_max_noise_for_Z; // maximum noise level at which we'll use high Z as a criterion
     float m_min_freq;  // only accept pulses whose offset frequency is at least this (kHz)
     float m_max_freq;  // only accept pulses from bins whose offset frequency is at most this (kHz)
 
@@ -125,6 +121,7 @@ protected:
     static int m_default_fft_overlap;
     static double m_default_min_Z;
     static double m_default_min_SNR_dB;
+    static double m_default_max_noise_for_Z_dB;
     static float m_default_min_freq;
     static float m_default_max_freq;
 
@@ -153,6 +150,9 @@ protected:
 
     // frequency estimator
     FreqEstimator *m_fest;
+
+    static const char * fftw_wisdom_filename;
+
 };
 
 

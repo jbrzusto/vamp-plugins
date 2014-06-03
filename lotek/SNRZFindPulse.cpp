@@ -62,6 +62,7 @@ SNRZFindPulse::SNRZFindPulse(float inputSampleRate) :
     m_fft_overlap(m_default_fft_overlap),
     m_min_Z(m_default_min_Z),
     m_min_SNR_dB(m_default_min_SNR_dB),
+    m_max_noise_for_Z (undB(m_default_max_noise_for_Z_dB)),
     m_min_freq (m_default_min_freq),
     m_max_freq (m_default_max_freq),
     m_batch_host (false),
@@ -69,6 +70,12 @@ SNRZFindPulse::SNRZFindPulse(float inputSampleRate) :
     m_fest(0)
     //    m_dcma (10000)
 {
+    // silently fail if wisdom cannot be found
+    FILE *f = fopen(fftw_wisdom_filename, "r");
+    if (f) {
+        (void) fftwf_import_wisdom_from_file(f);
+        fclose(f);
+    }
 }
 
 SNRZFindPulse::~SNRZFindPulse()
@@ -77,6 +84,13 @@ SNRZFindPulse::~SNRZFindPulse()
         delete m_spf;
     if (m_fest)
         delete m_fest;
+
+    // silently fail if we can't export wisdom
+    FILE *f = fopen(fftw_wisdom_filename, "wb");
+    if (f) {
+        (void) fftwf_export_wisdom_to_file(f);
+        fclose(f);
+    }
 }
 
 string
@@ -142,7 +156,7 @@ SNRZFindPulse::initialise(size_t channels, size_t stepSize, size_t blockSize)
     
     m_num_finders = m_max_bin - m_min_bin + 1;
 
-    m_spf = new SpectralPulseFinder (m_plen_samples, m_bkgd_samples, m_fft_win, m_fft_pad, m_fft_overlap, m_min_bin, m_max_bin, m_min_SNR_dB, m_min_Z);
+    m_spf = new SpectralPulseFinder (m_plen_samples, m_bkgd_samples, m_fft_win, m_fft_pad, m_fft_overlap, m_min_bin, m_max_bin, m_min_SNR_dB, m_min_Z, m_max_noise_for_Z);
 
     m_fest = new FreqEstimator (m_plen_samples);
 
@@ -215,16 +229,6 @@ SNRZFindPulse::getParameterDescriptors() const
     d.quantizeStep = 1;
     list.push_back(d);
 
-    d.identifier = "minz";
-    d.name = "Minimum Z Score";
-    d.description = "Minimum Z score of pulse mean against bkgd window mean, SD";
-    d.unit = "(none)";
-    d.minValue = 0;
-    d.maxValue = 1000;
-    d.defaultValue = SNRZFindPulse::m_default_min_Z;
-    d.isQuantized = false;
-    list.push_back(d);
-
     d.identifier = "minsnr";
     d.name = "Minimum Signal to Noise Ratio";
     d.description = "Minimum ratio of signal (with bkgd subtracted) to bkgd, in dB";
@@ -232,6 +236,26 @@ SNRZFindPulse::getParameterDescriptors() const
     d.minValue = 0;
     d.maxValue = 100;
     d.defaultValue = SNRZFindPulse::m_default_min_SNR_dB;
+    d.isQuantized = false;
+    list.push_back(d);
+
+    d.identifier = "maxnoisez";
+    d.name = "Maximum Noise For Using Z-Score (unit: dB)";
+    d.description = "Noise Level (dB) below which Z score can be used instead of SNR";
+    d.unit = "(none)";
+    d.minValue = -100;
+    d.maxValue = -30;
+    d.defaultValue = SNRZFindPulse::m_default_max_noise_for_Z_dB;
+    d.isQuantized = false;
+    list.push_back(d);
+
+    d.identifier = "minz";
+    d.name = "Minimum Z Score";
+    d.description = "Minimum Z score of pulse vs background; only in effect at low noise";
+    d.unit = "(none)";
+    d.minValue = 0;
+    d.maxValue = 1000;
+    d.defaultValue = SNRZFindPulse::m_default_min_Z;
     d.isQuantized = false;
     list.push_back(d);
 
@@ -255,6 +279,17 @@ SNRZFindPulse::getParameterDescriptors() const
     d.isQuantized = false;
     list.push_back(d);
 
+    d.identifier = "__batch_host__";
+    d.name = "IGNORE: set automatically by audacity or vamp-alsa-host";
+    d.description = "set to 1 when host needs batch output";
+    d.unit = "";
+    d.minValue = 0;
+    d.maxValue = 1;
+    d.defaultValue = SNRZFindPulse::m_batch_host;
+    d.isQuantized = true;
+    d.quantizeStep = 1.0;
+    list.push_back(d);
+
     return list;
 }
 
@@ -271,14 +306,18 @@ SNRZFindPulse::getParameter(string id) const
         return m_fft_pad;
     } else if (id == "fftoverlap") {
         return m_fft_overlap;
-    } else if (id == "minz") {
-        return m_min_Z;
     } else if (id == "minsnr") {
         return m_min_SNR_dB;
+    } else if (id == "maxnoisez") {
+        return dB(m_max_noise_for_Z);
+    } else if (id == "minz") {
+        return m_min_Z;
     } else if (id == "minfreq") {
         return m_min_freq;
     } else if (id == "maxfreq") {
         return m_max_freq;
+    } else if (id == "__batch_host__") {
+        return m_batch_host;
     } else {
         throw std::runtime_error("invalid parameter name");
     }
@@ -297,16 +336,21 @@ SNRZFindPulse::setParameter(string id, float value)
         SNRZFindPulse::m_default_fft_pad = m_fft_pad = value;
     } else if (id == "fftoverlap") {
         SNRZFindPulse::m_default_fft_overlap = m_fft_overlap = value;
-    } else if (id == "minz") {
-        SNRZFindPulse::m_default_min_Z = m_min_Z = value;
     } else if (id == "minsnr") {
         SNRZFindPulse::m_default_min_SNR_dB = m_min_SNR_dB = value;
+    } else if (id == "maxnoisez") {
+        SNRZFindPulse::m_default_max_noise_for_Z_dB = value;
+        m_max_noise_for_Z = undB(value);
+    } else if (id == "minz") {
+        SNRZFindPulse::m_default_min_Z = m_min_Z = value;
     } else if (id == "minfreq") {
         SNRZFindPulse::m_default_min_freq = m_min_freq = value;
     } else if (id == "maxfreq") {
         SNRZFindPulse::m_default_max_freq = m_max_freq = value;
+    } else if (id == "maxnoiseforz") {
+        SNRZFindPulse::m_default_max_noise_for_Z_dB = m_max_noise_for_Z = value;
     } else if (id == "__batch_host__") {
-        // kludge: hidden parameter that affects whether this plugin
+        // kludge: parameter that affects whether this plugin
         // produces output for a batch-style host (e.g. vamp-alsa-host)
         // or for display in a GUI-style host (e.g. audacity)
         // The default value for m_batch_host is false, so it will stay
@@ -382,8 +426,8 @@ SNRZFindPulse::process(const float *const *inputBuffers,
 
                 feature.timestamp = ts;
      
-                float sig = 10 * log10(m_spf->signal(i) - m_spf->noise(i)) + m_power_scale_dB;
-                float noise = 10 * log10(m_spf->noise(i)) + m_power_scale_dB;
+                float sig = dB (m_spf->signal(i) - m_spf->noise(i)) + m_power_scale_dB;
+                float noise = dB (m_spf->noise(i)) + m_power_scale_dB;
 
                 // get a better estimate of frequency offset
                 auto a1 = m_sample_buf.array_one();
@@ -394,8 +438,7 @@ SNRZFindPulse::process(const float *const *inputBuffers,
                 
                 float freq = m_fest->get(a1.first, n1, a2.first, n2);
                 
-                if (sig > -40.0 && fabs(freq - (i + m_min_bin) * m_plen_samples / (float) m_num_bins) > 2) {
-                    std::cerr << "Skipping pulse at " << ts;
+                if (fabs(freq - (i + m_min_bin) * m_plen_samples / (float) m_num_bins) > 2) {
                     continue; // don't use this pulse - the main energy is in another bin
                 }
 
@@ -440,6 +483,8 @@ int SNRZFindPulse::m_default_fft_overlap = 24;
 
 double SNRZFindPulse::m_default_min_SNR_dB = 6; // minimum SNR 
 double SNRZFindPulse::m_default_min_Z = 5; // z-score
+double SNRZFindPulse::m_default_max_noise_for_Z_dB = -50; // z-score
 float SNRZFindPulse::m_default_min_freq = -5.0; // -4 kHz
 float SNRZFindPulse::m_default_max_freq =  5.0; // +4 kHz
 
+const char * SNRZFindPulse::fftw_wisdom_filename = "./fftw_wisdom.dat";
