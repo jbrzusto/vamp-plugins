@@ -25,7 +25,7 @@ PLUGIN_INSTALL_DIR = ~/vamp
 
 # Edit this to list one .o file for each .cpp file in your plugin project
 #
-PLUGIN_CODE_OBJECTS = FindPulseFD.o FindPulseFDBatch.o FindPulseTD.o FindPulseTDBatch.o
+PLUGIN_CODE_OBJECTS = SNRZFindPulse.o SlidingSpectrum.o FreqEstimator.o FindPulseFD.o FindPulseFDBatch.o
 
 # Edit this to the location of the Vamp plugin SDK, relative to your
 # project directory
@@ -35,7 +35,12 @@ VAMP_SDK_LIB_DIR = /usr/lib
 
 ##  Uncomment these for Linux using the standard tools:
 
-CXXFLAGS = -I$(VAMP_SDK_INCLUDE_DIR) -Wall -fPIC -O3 -mcpu=cortex-a8 -mfpu=neon -ftree-vectorize -mfloat-abi=hard -ffast-math -fsingle-precision-constant
+CXXFLAGS_PRODUCTION = -std=c++0x -I$(VAMP_SDK_INCLUDE_DIR) -Wall -fPIC -O3 -mcpu=cortex-a8 -mfpu=neon -ftree-vectorize -mfloat-abi=hard -ffast-math
+
+CXXFLAGS_DEBUG = -std=c++0x -I$(VAMP_SDK_INCLUDE_DIR) -Wall -fPIC -g3 
+
+##CXXFLAGS = $(CXXFLAGS_DEBUG)
+CXXFLAGS = $(CXXFLAGS_PRODUCTION)
 PLUGIN_EXT = .so
 PLUGIN = $(PLUGIN_LIBRARY_NAME)$(PLUGIN_EXT)
 LDFLAGS = -shared -Wl,-soname=$(PLUGIN) $(VAMP_SDK_LIB_DIR)/libvamp-sdk.a -lfftw3f -Wl,--version-script=vamp-plugin.map
@@ -46,6 +51,10 @@ $(PLUGIN): $(PLUGIN_CODE_OBJECTS) lotek-plugins.o
 	   strip $@
 
 lotek-plugins.o: $(PLUGIN_CODE_OBJECTS) lotek-plugins.cpp
+
+SNRZFindPulse.o: SpectralPulseFinder.h SNRZFindPulse.h FreqEstimator.h FixedPulseDetector.h KahanMovingAverager.h SlidingSpectrum.h
+
+FreqEstimator.o: FreqEstimator.h
 
 FindPulseFD.o: FindPulseFD.h PulseFinder.h
 
@@ -61,9 +70,51 @@ FindPulseBatch.o: FindPulseBatch.h MovingAverager.h
 
 AveragePower.o: AveragePower.h MovingAverager.h
 
+NewFindPulse.o: NewFindPulse.h SortedFifo.h DynamicQuantile.h PeakFinder.h MovingAverager.h FreqEstimator.h EdgeDetector.h PulseDetector.h KahanSum.h
+
+FreqEstimator.o: FreqEstimator.h
+
+SlidingSpectrum.o: SlidingSpectrum.cpp SlidingSpectrum.h
+
+testFreqEstimator.o: FreqEstimator.h testFreqEstimator.cpp
+
+testFreqEstimator: testFreqEstimator.o FreqEstimator.o
+	$(CXX) -o $@ $^ -L/usr/local/lib -lfftw3f
+
+testKahanSum: KahanSum.h testKahanSum.cpp
+	g++ -$(CXXFLAGS) -o testKahanSum testKahanSum.cpp
+
+testPeakFinder: PeakFinder.h testPeakFinder.cpp SortedFifo.h
+	g++ $(CXXFLAGS) -o testPeakFinder testPeakFinder.cpp
+
+testDynamicQuantile: DynamicQuantile.h testDynamicQuantile.cpp
+	g++ $(CXXFLAGS) -o testDynamicQuantile testDynamicQuantile.cpp
+
+testEdgeDetector: EdgeDetector.h testEdgeDetector.cpp
+	g++ $(CXXFLAGS) -o testEdgeDetector testEdgeDetector.cpp
+
+testVariablePulseDetector: VariablePulseDetector.h testVariablePulseDetector.cpp 
+	g++ $(CXXFLAGS) -o testVariablePulseDetector testVariablePulseDetector.cpp
+
+testFixedPulseDetector: FixedPulseDetector.h testFixedPulseDetector.cpp 
+	g++ $(CXXFLAGS) -o testFixedPulseDetector testFixedPulseDetector.cpp
+
+testAccordion: Accordion.h testAccordion.cpp
+	g++ $(CXXFLAGS) -o testAccordion testAccordion.cpp
+
+testKahanMovingAverager: KahanMovingAverager.h testKahanMovingAverager.cpp
+	g++ $(CXXFLAGS) -o testKahanMovingAverager testKahanMovingAverager.cpp
+
+testSlidingSpectrum: SlidingSpectrum.h testSlidingSpectrum.o SlidingSpectrum.o
+	g++ $(CXXFLAGS) -o testSlidingSpectrum SlidingSpectrum.o testSlidingSpectrum.cpp -lfftw3f
+
+testSpectralPulseFinder: SpectralPulseFinder.h testSpectralPulseFinder.cpp SlidingSpectrum.o
+	g++ $(CXXFLAGS) -o testSpectralPulseFinder testSpectralPulseFinder.cpp SlidingSpectrum.o -lfftw3f
+
 clean:
 	rm -f *.o
 
 install: $(PLUGIN)
+	strip $(PLUGIN)
 	cp -f $(PLUGIN) $(PLUGIN_INSTALL_DIR)
 
