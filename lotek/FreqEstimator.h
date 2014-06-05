@@ -36,6 +36,8 @@ public:
 
     float get (std::complex < float > * seg1, int n1, std::complex < float > * seg2, int n2);
 
+    static double cubicMaximize(double y0, double y1, double y2, double y3); // estimate location of maximum (using cubic curve) given function values at x = 0, 1, 2, 3
+
 protected:
 
     int m_frames;
@@ -52,7 +54,6 @@ protected:
     void generateWindowingCoefficients();
 
     double estimateBinOffset(int bin); // given 'bin' has max power, estimate the offset to the true frequency using adjacent bins, and the ratio of bin power to true power
-    double cubicMaximize(double y0, double y1, double y2, double y3); // estimate location of maximum (using cubic curve) given function values at x = 0, 1, 2, 3
 };
 
 

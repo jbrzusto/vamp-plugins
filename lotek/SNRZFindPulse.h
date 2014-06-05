@@ -91,7 +91,7 @@ public:
 
     FeatureSet getRemainingFeatures();
 
-    double cubicMaximize(double y0, double y1, double y2, double y3);
+    static double cubicMaximize(double y0, double y1, double y2, double y3);
 
 protected:
     size_t m_channels;
@@ -127,7 +127,7 @@ protected:
 
     // internal registers
     int m_num_bins;  // number of FFT bins, including zero-padding bins
-    int m_num_finders; // number of FFT bins we're actually looking for pulses in
+    int m_num_seek_bins; // number of FFT bins we're actually looking for pulses in
     int m_plen_samples; // length of pulse in samples
     int m_bkgd_samples; // length of each (left, right) bkgd window, in samples
     float m_power_scale_dB; // add this to fourier bin power to get dB
@@ -138,20 +138,8 @@ protected:
     int m_min_bin;
     int m_max_bin;
 
-    // sample buffer, from which finer frequency estimates will be calculated
-    // when pulses are found
-    
-    boost::circular_buffer < std::complex < float > > m_sample_buf; 
-
-    //    KahanMovingAverager < std::complex < float > , std::complex < double > > m_dcma; // moving averager for removing (slow) DC
-
     // pulse detector
     SpectralPulseFinder *m_spf;
-
-    // frequency estimator
-    FreqEstimator *m_fest;
-
-    static const char * fftw_wisdom_filename;
 
 };
 

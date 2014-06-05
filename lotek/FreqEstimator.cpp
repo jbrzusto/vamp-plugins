@@ -21,7 +21,6 @@
 #include <cmath>
 #include <complex>
 #include <stdexcept>
-#include <iostream>
 
 #ifdef MINGW
 #define fftw_free(X) fftwf_free(X)
@@ -56,12 +55,13 @@ FreqEstimator::~FreqEstimator()
 float FreqEstimator::get (std::complex < float > * seg1, int n1, std::complex < float > * seg2, int n2)
 {
     int i = 0;
-    
-    for (int j = 0; j < n1; ++j, ++i)
+
+    for (int j = 0; j < n1; ++j, ++i) {
         m_input[i] = seg1[j] * m_window[i];
-    for (int j = 0; j < n2; ++j, ++i)
+    }
+    for (int j = 0; j < n2; ++j, ++i) {
         m_input[i] = seg2[j] * m_window[i];
-    
+    }
     // do FFT
     fftwf_execute(m_plan);
 

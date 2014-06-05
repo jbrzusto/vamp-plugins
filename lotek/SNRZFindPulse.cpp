@@ -66,31 +66,14 @@ SNRZFindPulse::SNRZFindPulse(float inputSampleRate) :
     m_min_freq (m_default_min_freq),
     m_max_freq (m_default_max_freq),
     m_batch_host (false),
-    m_spf(0),
-    m_fest(0)
-    //    m_dcma (10000)
+    m_spf(0)
 {
-    // silently fail if wisdom cannot be found
-    FILE *f = fopen(fftw_wisdom_filename, "r");
-    if (f) {
-        (void) fftwf_import_wisdom_from_file(f);
-        fclose(f);
-    }
 }
 
 SNRZFindPulse::~SNRZFindPulse()
 {
     if (m_spf)
         delete m_spf;
-    if (m_fest)
-        delete m_fest;
-
-    // silently fail if we can't export wisdom
-    FILE *f = fopen(fftw_wisdom_filename, "wb");
-    if (f) {
-        (void) fftwf_export_wisdom_to_file(f);
-        fclose(f);
-    }
 }
 
 string
@@ -158,14 +141,9 @@ SNRZFindPulse::initialise(size_t channels, size_t stepSize, size_t blockSize)
     m_min_bin = floor(m_min_freq / m_bin_step) ;
     m_max_bin = ceil(m_max_freq / m_bin_step) ;
     
-    m_num_finders = m_max_bin - m_min_bin + 1;
+    m_num_seek_bins = m_max_bin - m_min_bin + 1;
 
     m_spf = new SpectralPulseFinder (m_plen_samples, m_bkgd_samples, m_fft_win, m_fft_pad, m_fft_overlap, m_min_bin, m_max_bin, m_min_SNR_dB, m_min_Z, m_max_noise_for_Z);
-
-    m_fest = new FreqEstimator (m_plen_samples);
-
-    //    m_sample_buf = boost::circular_buffer < std::complex < float > > (m_plen_samples + 2 * m_bkgd_samples);
-    m_sample_buf = boost::circular_buffer < std::complex < float > > (m_spf->location());
 
     return true;
 }
@@ -401,73 +379,63 @@ SNRZFindPulse::process(const float *const *inputBuffers,
     }
 
     for (unsigned i=0; i < m_blockSize; ++i) {
-        // get sample as complex I/Q 
+        // grab sample as complex I/Q pair
 
         std::complex < float > sample (inputBuffers[0][i], inputBuffers[1][i]);
-        
-        // buffer it
-
-        m_sample_buf.push_back(sample);
 
         // send it to the pulse finder
 
         if ((*m_spf) (sample)) {
-            // found pulse(s)
+            // found a pulse
+
+            int p = m_spf->pulsebin();
 
             // how many samples back was the centre of the pulse?
+            // this is only as precise as the fft step (fft_size - overlap)
+
             int centre = (int) i - (int) m_spf->location() + m_plen_samples / 2.0;
             Vamp::RealTime ts = timestamp + Vamp::RealTime::frame2RealTime(centre, (size_t) m_inputSampleRate);
  
-            for (auto biniter = m_spf->beginbin(); biniter != m_spf->endbin(); ++biniter) {
-                int i = *biniter;
-                       
-                // dump the feature
-                Feature feature;
-                feature.hasTimestamp = true;
-                feature.hasDuration = false;
+            // dump the feature
+            Feature feature;
+            feature.hasTimestamp = true;
+            feature.hasDuration = false;
             
-                // The pulse timestamp is taken to be the centre of the pulse window
-
-                feature.timestamp = ts;
+            // The pulse timestamp is taken to be the centre of the pulse window
+            
+            feature.timestamp = ts;
      
-                float sig = dB (m_spf->signal(i) - m_spf->noise(i)) + m_power_scale_dB;
-                float noise = dB (m_spf->noise(i)) + m_power_scale_dB;
+            float sig = dB (m_spf->signal(p) - m_spf->noise(p)) + m_power_scale_dB;
+            float noise = dB (m_spf->noise(p)) + m_power_scale_dB;
 
-                // get a better estimate of frequency offset
-                auto a1 = m_sample_buf.array_one();
-                auto a2 = m_sample_buf.array_two();
-                
-                int n1 = std::min (m_plen_samples, (int) a1.second);
-                int n2 = std::min (m_plen_samples - n1, 0);
-                
-                float freq = m_fest->get(a1.first, n1, a2.first, n2);
-                
-                if (fabs(freq - (i + m_min_bin) * m_plen_samples / (float) m_num_bins) > 2) {
-                    continue; // don't use this pulse - the main energy is in another bin
-                }
+            // get a better estimate of frequency offset
+            float freq;
+            if (p >= 1 && p + 2 < m_num_seek_bins)
+                freq = p + m_min_bin + cubicMaximize(m_spf->signal(p-1), m_spf->signal(p), m_spf->signal(p+1), m_spf->signal(p+2));
+            else
+                freq = p + m_min_bin;
 
-                freq *= m_inputSampleRate / (1000.0 * m_plen_samples);
+            freq *= m_inputSampleRate / (1000.0 * m_fft_win);
 
-                if (freq < m_min_freq || freq > m_max_freq)
-                    continue;
+            if (freq < m_min_freq || freq > m_max_freq)
+                continue;
                
-                if (m_batch_host) {
-                    feature.values.push_back(freq);
-                    feature.values.push_back(sig);
-                    feature.values.push_back(noise);
-                } else {
-                    std::stringstream ss;
-                    ss.precision(5);
+            if (m_batch_host) {
+                feature.values.push_back(freq);
+                feature.values.push_back(sig);
+                feature.values.push_back(noise);
+            } else {
+                std::stringstream ss;
+                ss.precision(5);
                     
-                    ss << "freq: " << freq << " (kHz)"
-                       << "; pwr: " << sig << " dB"
-                       << "; bgkd: " << noise  << " dB"
-                       << ";  bin: " << i << "; Z: " << m_spf->Z(i);
+                ss << "freq: " << freq << " (kHz)"
+                   << "; pwr: " << sig << " dB"
+                   << "; bgkd: " << noise  << " dB"
+                   << ";  bin: " << p << "; Z: " << m_spf->Z(p);
             
-                    feature.label = ss.str();
-                }
-                returnFeatures[0].push_back(feature);
+                feature.label = ss.str();
             }
+            returnFeatures[0].push_back(feature);
         }
     }
     return returnFeatures;
@@ -479,16 +447,68 @@ SNRZFindPulse::getRemainingFeatures()
     return FeatureSet();
 }
 
+double
+SNRZFindPulse::cubicMaximize(double y0, double y1, double y2, double y3)
+{
+   // Find coefficients of cubic
+
+   double a, b, c;
+
+   a = y0 / -6.0 + y1 / 2.0 - y2 / 2.0 + y3 / 6.0;
+
+   if (a == 0.0)
+       return double(-1); // error
+
+   b = y0 - 5.0 * y1 / 2.0 + 2.0 * y2 - y3 / 2.0;
+   c = -11.0 * y0 / 6.0 + 3.0 * y1 - 3.0 * y2 / 2.0 + y3 / 3.0;
+
+   // Take derivative
+
+   double da, db, dc;
+
+   da = 3 * a;
+   db = 2 * b;
+   dc = c;
+
+   // Find zeroes of derivative using quadratic equation
+
+   double discriminant = db * db - 4 * da * dc;
+   if (discriminant < 0.0) {
+        if (discriminant < -1.0)
+            return double(-1000);              // error
+        else
+            discriminant = 0.0;
+    }              
+    
+   double x1 = (-db + sqrt(discriminant)) / (2 * da);
+   double x2 = (-db - sqrt(discriminant)) / (2 * da);
+
+   // The one which corresponds to a local _maximum_ in the
+   // cubic is the one we want - the one with a negative
+   // second derivative
+
+   double dda = 2 * da;
+   double ddb = db;
+
+   if (dda * x1 + ddb < 0)
+   {
+      return x1;
+   }
+   else
+   {
+      return x2;
+   }
+};
+
+
 float SNRZFindPulse::m_default_plen = 2.5; // milliseconds
 float SNRZFindPulse::m_default_bkgd = 12.5; // milliseconds
-int SNRZFindPulse::m_default_fft_win = 48; // 0.5 milliseconds @ 192kHz
+int SNRZFindPulse::m_default_fft_win = 80; // 2/3 of the 2.5 milliseconds @ 48 kHz
 int SNRZFindPulse::m_default_fft_pad = 1; // 
-int SNRZFindPulse::m_default_fft_overlap = 24; 
+int SNRZFindPulse::m_default_fft_overlap = 40; 
 
 double SNRZFindPulse::m_default_min_SNR_dB = 6; // minimum SNR 
 double SNRZFindPulse::m_default_min_Z = 5; // z-score
 double SNRZFindPulse::m_default_max_noise_for_Z_dB = -50; // z-score
 float SNRZFindPulse::m_default_min_freq = -5.0; // -4 kHz
 float SNRZFindPulse::m_default_max_freq =  5.0; // +4 kHz
-
-const char * SNRZFindPulse::fftw_wisdom_filename = "./fftw_wisdom.dat";

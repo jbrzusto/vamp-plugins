@@ -44,7 +44,8 @@ class PeakFinder {
       if (find_max) {
         // if looking for a max, see whether this is one
         auto max = buf.max();
-        if (mid == *max && mid != *++max) {
+        //        if (mid == *max && mid != *++max) {
+        if (mid == *max) {
           was_max = true;
           return true;
         }
@@ -52,7 +53,8 @@ class PeakFinder {
       if (find_min) {
         // if looking for a min, see whether this is one
         auto min = buf.min();
-        if (mid == *min && mid != *++min) {
+        //        if (mid == *min && mid != *++min) {
+        if (mid == *min) {
           was_max = false;
           return true;
         }

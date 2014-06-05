@@ -74,20 +74,21 @@ public:
                                   reinterpret_cast < fftwf_complex *> (output),
                                   -1, FFTW_PATIENT);
 
+        // silently fail if we can't export wisdom
+        if (! fftw_wisdom_loaded) {
+            FILE *f = fopen(fftw_wisdom_filename.c_str(), "wb");
+            if (f) {
+                (void) fftwf_export_wisdom_to_file(f);
+                fclose(f);
+            }
+        }
+
         if (win_type == WINDOW_HAMMING)
             generateHammingWindow();
     };
 
     ~SlidingSpectrum() {
         if (plan) {
-            // silently fail if we can't export wisdom
-            if (! fftw_wisdom_loaded) {
-                FILE *f = fopen(fftw_wisdom_filename.c_str(), "wb");
-                if (f) {
-                    (void) fftwf_export_wisdom_to_file(f);
-                    fclose(f);
-                }
-            }
             fftwf_destroy_plan(plan);
             fftwf_free(input);
             fftwf_free(output);

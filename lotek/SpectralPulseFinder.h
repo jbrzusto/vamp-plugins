@@ -63,8 +63,7 @@ public:
         min_z (min_z),
         max_noise_for_Z (max_noise_for_Z),
         ss(win_size, pad, overlap),
-        pd(),
-        pulsebin()
+        pd()
     {
         // Note: pulse width is specified in the time domain, but pulses
         // are detected in the sliding spectrum.  In the latter, the 'width'
@@ -72,9 +71,9 @@ public:
         // that will cover the samples in the time-domain pulse, taking into
         // account window overlap.  Padding does not need to be considered here.
 
-        width_in_spectrum = round(1.0 + (width - win_size) / (double) (win_size - overlap));
+        width_in_spectrum = ceil(1.0 + width / (double) (win_size - overlap));
 
-        bkgd_in_spectrum = round(1.0 + (bkgd - win_size) / (double) (win_size - overlap));
+        bkgd_in_spectrum = ceil(1.0 + bkgd / (double) (win_size - overlap));
 
         for (int i = 0; i < numbins; ++i) 
             pd.push_back(FixedPulseDetector < float > ( width_in_spectrum,
@@ -103,57 +102,51 @@ public:
 
     bool operator () (const std::complex < float >  &d) {
         // process a sample; return true if a pulse has been found
-        bool gotapulse = false;
+
+        bestbin = -1;
+        float bestsig = -1;
 
         if (ss(d)) {
             // a new fourier spectrum is available; push power values for each
             // bin of interest into the appropriate pulse detector
 
+
             for (int i = 0; i < numbins; ++i) {
                 int ii = ith_bin(i);
                 if ( pd[i](std::abs(Power(ss[ii])))) {
-                    // a pulse was found in this bin
-                    if (! gotapulse) {
-                        pulsebin.clear();
-                        gotapulse = true;
+                    if (bestbin == -1 || pd[i].signal() > bestsig) {
+                        bestbin = i;
+                        bestsig = pd[i].signal();
                     }
-                    // a pulse has been found in this FFT bin 
-                    pulsebin.push_back(i);
                 }
             }
         }
-        return gotapulse;
+        return bestbin >= 0;
     };
 
-    bin_iter_t beginbin() {
-        return pulsebin.begin();
-    };
-
-    bin_iter_t endbin() {
-        return pulsebin.end();
+    int pulsebin () {
+        // return the index (relative to minbin) of the bin with the pulse
+        // only valid immediately after operator() returns true
+        return bestbin;
     };
 
     double signal (unsigned i) {
         // return the signal of the pulse in the i'th (relative to minbin) FFT bin
-        // only valid for i returned by operator[]
         return pd[i].signal();
     };
 
     double noise (unsigned i) {
         // return the noise of the pulse in the i'th FFT bin
-        // only valid if operator [i] returned true
         return pd[i].bkgd();
     };
 
     double SNR (unsigned i) {
         // return the SNR for the pulse in the ith FFT bin
-        // only valid if operator [i] returned true
         return pd[i].SNR();
     };
 
     double Z (unsigned i) {
         // return the Z score for the pulse in the ith FFT bin
-        // only valid if operator [i] returned true
         return pd[i].Z();
     };
 
@@ -185,7 +178,8 @@ public:
     SlidingSpectrum ss;
 
     std::vector < FixedPulseDetector < float > > pd; // vector of pulse detectors, one per bin in the range minbin..maxbin
-    std::vector < int > pulsebin; // vector of bin numbers in which a pulse was found
+    
+    int bestbin;
 };
 
 #endif // _SPECTRAL_PULSE_FINDER_H_
