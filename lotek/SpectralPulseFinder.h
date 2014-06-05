@@ -80,7 +80,7 @@ public:
                                                         bkgd_in_spectrum,
                                                         exp10(min_SNR_dB / 10.0), // min_SNR in linear units
                                                         min_z,
-                                                        max_noise_for_Z
+                                                        max_noise_for_Z * (win_size * win_size) // scale for FFT window size
                                                         ));
     };
 
