@@ -45,11 +45,10 @@ LDFLAGS = -shared -Wl,-soname=$(PLUGIN) $(VAMP_SDK_LIB_DIR)/libvamp-sdk.a -L/usr
 
 $(PLUGIN): $(PLUGIN_CODE_OBJECTS) lotek-plugins.o
 	   $(CXX) -o $@ $^ $(LDFLAGS)
-	   strip $@
 
 lotek-plugins.o: $(PLUGIN_CODE_OBJECTS) lotek-plugins.cpp
 
-SNRZFindPulse.o: SpectralPulseFinder.h SNRZFindPulse.h FreqEstimator.h FixedPulseDetector.h KahanMovingAverager.h SlidingSpectrum.h
+SNRZFindPulse.o: SpectralPulseFinder.h SNRZFindPulse.h FixedPulseDetector.h KahanMovingAverager.h SlidingSpectrum.h PeakFinder.h
 
 FreqEstimator.o: FreqEstimator.h
 
@@ -112,6 +111,6 @@ clean:
 	rm -f *.o
 
 install: $(PLUGIN)
-	strip $(PLUGIN)
+	if [ "$(CXXFLAGS)" != "$(CXXFLAGS_DEBUG)" ]; then strip $(PLUGIN); fi
 	cp -f $(PLUGIN) $(PLUGIN_INSTALL_DIR)
 
