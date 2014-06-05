@@ -508,7 +508,7 @@ int SNRZFindPulse::m_default_fft_pad = 1; //
 int SNRZFindPulse::m_default_fft_overlap = 40; 
 
 double SNRZFindPulse::m_default_min_SNR_dB = 6; // minimum SNR 
-double SNRZFindPulse::m_default_min_Z = 5; // z-score
-double SNRZFindPulse::m_default_max_noise_for_Z_dB = -50; // z-score
+double SNRZFindPulse::m_default_min_Z = 150; // z-score
+double SNRZFindPulse::m_default_max_noise_for_Z_dB = -70; // z-score
 float SNRZFindPulse::m_default_min_freq = -5.0; // -4 kHz
 float SNRZFindPulse::m_default_max_freq =  5.0; // +4 kHz
