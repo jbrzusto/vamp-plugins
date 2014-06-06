@@ -19,6 +19,7 @@
 #include <boost/circular_buffer.hpp>
 #include "KahanMovingAverager.h"
 #include "PeakFinder.h"
+#include "vamp-plugins-common.h"
 
 template < typename TYPE >
 

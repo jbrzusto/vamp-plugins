@@ -66,7 +66,9 @@ SNRZFindPulse::SNRZFindPulse(float inputSampleRate) :
     m_min_freq (m_default_min_freq),
     m_max_freq (m_default_max_freq),
     m_batch_host (false),
-    m_spf(0)
+    m_spf(0),
+    m_dc_offset_I(0.0),
+    m_dc_offset_Q(0.0)
 {
 }
 
@@ -380,8 +382,14 @@ SNRZFindPulse::process(const float *const *inputBuffers,
 
     for (unsigned i=0; i < m_blockSize; ++i) {
         // grab sample as complex I/Q pair
+        
+        float I = inputBuffers[0][i];
+        float Q = inputBuffers[1][i];
 
-        std::complex < float > sample (inputBuffers[0][i], inputBuffers[1][i]);
+        m_dc_offset_I = (2047.0 * m_dc_offset_I + I) / 2048.0;
+        m_dc_offset_Q = (2047.0 * m_dc_offset_Q + Q) / 2048.0;
+
+        std::complex < float > sample (I - m_dc_offset_I, Q - m_dc_offset_Q);
 
         // send it to the pulse finder
 

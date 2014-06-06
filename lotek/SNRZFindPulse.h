@@ -141,6 +141,9 @@ protected:
     // pulse detector
     SpectralPulseFinder *m_spf;
 
+    // DC offset removal
+    double m_dc_offset_I;
+    double m_dc_offset_Q;
 };
 
 
