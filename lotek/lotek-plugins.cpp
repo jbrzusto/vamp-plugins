@@ -44,10 +44,12 @@
 #include "SNRZFindPulse.h"
 #include "FindPulseFDBatch.h"
 #include "FindPulseFD.h"
+#include "FindPulseTDSNRZ.h"
 
 static Vamp::PluginAdapter<SNRZFindPulse> SNRZFindPulseAdapater;
 static Vamp::PluginAdapter<FindPulseFDBatch> findPulseFDBatchAdapter;
 static Vamp::PluginAdapter<FindPulseFD> findPulseFDAdapter;
+static Vamp::PluginAdapter<FindPulseTDSNRZ> findPulseTDSNRZAdapter;
 
 const VampPluginDescriptor *vampGetPluginDescriptor(unsigned int version,
                                                     unsigned int index)
@@ -58,6 +60,7 @@ const VampPluginDescriptor *vampGetPluginDescriptor(unsigned int version,
     case  0: return SNRZFindPulseAdapater.getDescriptor();
     case  1: return findPulseFDBatchAdapter.getDescriptor();
     case  2: return findPulseFDAdapter.getDescriptor();
+    case  3: return findPulseTDSNRZAdapter.getDescriptor();
     default: return 0;
     }
 }
