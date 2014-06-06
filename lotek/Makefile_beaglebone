@@ -25,7 +25,7 @@ PLUGIN_INSTALL_DIR = ~/vamp
 
 # Edit this to list one .o file for each .cpp file in your plugin project
 #
-PLUGIN_CODE_OBJECTS = SNRZFindPulse.o SlidingSpectrum.o FreqEstimator.o FindPulseFD.o FindPulseFDBatch.o
+PLUGIN_CODE_OBJECTS = SNRZFindPulse.o SlidingSpectrum.o FindPulseFD.o FindPulseFDBatch.o
 
 # Edit this to the location of the Vamp plugin SDK, relative to your
 # project directory
@@ -48,11 +48,10 @@ LDFLAGS = -shared -Wl,-soname=$(PLUGIN) $(VAMP_SDK_LIB_DIR)/libvamp-sdk.a -lfftw
 
 $(PLUGIN): $(PLUGIN_CODE_OBJECTS) lotek-plugins.o
 	   $(CXX) -o $@ $^ $(LDFLAGS)
-	   strip $@
 
 lotek-plugins.o: $(PLUGIN_CODE_OBJECTS) lotek-plugins.cpp
 
-SNRZFindPulse.o: SpectralPulseFinder.h SNRZFindPulse.h FreqEstimator.h FixedPulseDetector.h KahanMovingAverager.h SlidingSpectrum.h
+SNRZFindPulse.o: SpectralPulseFinder.h SNRZFindPulse.h FixedPulseDetector.h KahanMovingAverager.h SlidingSpectrum.h PeakFinder.h
 
 FreqEstimator.o: FreqEstimator.h
 
@@ -115,6 +114,6 @@ clean:
 	rm -f *.o
 
 install: $(PLUGIN)
-	strip $(PLUGIN)
+	if [ "$(CXXFLAGS)" != "$(CXXFLAGS_DEBUG)" ]; then strip $(PLUGIN); fi
 	cp -f $(PLUGIN) $(PLUGIN_INSTALL_DIR)
 
