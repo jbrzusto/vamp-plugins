@@ -31,6 +31,10 @@ class KahanMovingAverager {
     return m_total / buf.size();
   };
 
+  AVGTYPE sum() { // get the sum
+    return m_total;
+  };
+
   bool operator() (const DATATYPE & d) { 
     // process a value from the data stream
     // return true if a (full window) moving average is available
