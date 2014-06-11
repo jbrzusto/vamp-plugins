@@ -54,6 +54,10 @@ protected:
     void generateWindowingCoefficients();
 
     double estimateBinOffset(int bin); // given 'bin' has max power, estimate the offset to the true frequency using adjacent bins, and the ratio of bin power to true power
+
+    static const char * m_fftw_wisdom_filename;
+    static bool m_fftw_wisdom_loaded;
+
 };
 
 

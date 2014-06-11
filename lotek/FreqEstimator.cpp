@@ -21,6 +21,7 @@
 #include <cmath>
 #include <complex>
 #include <stdexcept>
+#include <string.h>
 
 #ifdef MINGW
 #define fftw_free(X) fftwf_free(X)
@@ -29,13 +30,31 @@
 FreqEstimator::FreqEstimator (int frames) :
     m_frames(frames)
 {
+    if (! m_fftw_wisdom_loaded) {
+        // silently fail if wisdom cannot be found
+        FILE *f = fopen(m_fftw_wisdom_filename, "r");
+        if (f) {
+            (void) fftwf_import_wisdom_from_file(f);
+            fclose(f);
+            m_fftw_wisdom_loaded = true;
+        }
+    }
+
     m_input =  reinterpret_cast < std::complex < float > *> (fftwf_malloc(m_frames * sizeof(fftw_complex)));
+    memset(m_input, 0, sizeof(std::complex < float > ) * m_frames);
+
     m_output = reinterpret_cast < std::complex < float > *> (fftwf_malloc(m_frames * sizeof(fftw_complex)));
     m_plan = fftwf_plan_dft_1d(m_frames,
                                reinterpret_cast < fftwf_complex * > (m_input), 
                                reinterpret_cast < fftwf_complex * > (m_output)
                                , -1, FFTW_PATIENT);
 
+    // silently fail if we can't export wisdom
+    FILE *f = fopen(m_fftw_wisdom_filename, "wb");
+    if (f) {
+        (void) fftwf_export_wisdom_to_file(f);
+        fclose(f);
+    }
     generateWindowingCoefficients();
 }
 
@@ -177,3 +196,5 @@ FreqEstimator::estimateBinOffset(int max_bin)
     return cubicMaximize(pwr[0], pwr[1], pwr[2], pwr[3]) - 1;
 }
 
+const char * FreqEstimator::m_fftw_wisdom_filename = "./fftw_wisdom.dat";
+bool FreqEstimator::m_fftw_wisdom_loaded = false;
