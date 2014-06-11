@@ -23,7 +23,7 @@ Specify NUMSAMPLES as 0 to read samples from stdin.\n\
   srand48(time(0));
 
   int m = atoi(argv[1]);
-  PeakFinder < float > pf(m, true, true);
+  PeakFinder < float > pf(m);
 
   int n = atoi(argv[2]);
 
@@ -37,6 +37,6 @@ Specify NUMSAMPLES as 0 to read samples from stdin.\n\
       std::cout << val << std::endl;
     }
     if (pf(val))
-      std::cout << "Peak (back " << m << ") " <<  (pf ? "^ " : "v ") << " = " << (double) pf << std::endl;
+      std::cout << "Peak (back " << m << ")  = " << (double) pf << std::endl;
   }
 }
