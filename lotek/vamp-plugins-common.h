@@ -18,5 +18,6 @@
 
 #define dB(X) (10.0 * log10(X))
 #define undB(X) (exp10((X) / 10.0))
+#define Pwr(X) ({auto _X = X; _X.real() * _X.real() + _X.imag() * _X.imag();})
 
 #endif /*  _VAMP_PLUGINS_COMMON_H_ */
