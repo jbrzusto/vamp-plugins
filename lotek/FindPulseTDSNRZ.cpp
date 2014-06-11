@@ -147,7 +147,7 @@ FindPulseTDSNRZ::initialise(size_t channels, size_t stepSize, size_t blockSize)
 
     m_samp_buff = boost::circular_buffer < std::complex < float > > (m_plen_samples + 2 * m_bkgd_samples);
 
-    m_fest = new FreqEstimator (m_plen_samples);
+    m_fest = new FreqEstimator (m_plen_samples * DEFAULT_FFT_PADDING);
 
     return true;
 }
@@ -385,7 +385,7 @@ FindPulseTDSNRZ::process(const float *const *inputBuffers,
             n1 = std::min(m_plen_samples, (int) a1.second);
             n2 = m_plen_samples - n1;
 
-            float freq = m_fest->get(a1.first, n1, a2.first, n2);
+            float freq = m_fest->get(a1.first, n1, a2.first, n2) / (double) DEFAULT_FFT_PADDING;
 
             freq *= m_inputSampleRate / (1000.0 * m_plen_samples);
 

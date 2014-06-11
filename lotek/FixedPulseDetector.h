@@ -31,7 +31,7 @@ public:
     bkgd_width(bkgd_width),
     z_scale(sqrt(2.0 * bkgd_width - 1.0)),
     min_SNR(min_SNR),
-    min_z(min_z / z_scale),  // pre-scale to simplify SD calculation lator
+    min_z(min_z / z_scale),  // pre-scale to simplify SD calculation later
     max_noise_for_Z(max_noise_for_Z),
     min_needed(width + bkgd_width + 1),
     winma(width),
@@ -40,7 +40,7 @@ public:
     ma_win_buff(2 * bkgd_width + width + 1),
     ma_bkgd_buff(2 * bkgd_width + width + 1),
     ma_bkgd2_buff(2 * bkgd_width + width + 1),
-    pk (bkgd_width, true, false) // only look for local maxima
+    pk (bkgd_width)
   {
   };
   

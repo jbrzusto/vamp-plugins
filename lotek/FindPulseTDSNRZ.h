@@ -94,6 +94,9 @@ public:
     static double cubicMaximize(double y0, double y1, double y2, double y3);
 
 protected:
+
+    static const int DEFAULT_FFT_PADDING = 10;
+
     size_t m_channels;
     size_t m_stepSize;
     size_t m_blockSize;
