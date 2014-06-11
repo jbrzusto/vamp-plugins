@@ -36,8 +36,8 @@ VAMP_SDK_LIB_DIR = /usr/lib
 CXXFLAGS_PRODUCTION = -std=c++0x -I$(VAMP_SDK_INCLUDE_DIR) -Wall -fPIC -O3 -ffast-math  -ftree-vectorize
 CXXFLAGS_DEBUG = -std=c++0x -I$(VAMP_SDK_INCLUDE_DIR) -Wall -fPIC -g3 
 
-CXXFLAGS = $(CXXFLAGS_DEBUG)
-##CXXFLAGS = $(CXXFLAGS_PRODUCTION)
+##CXXFLAGS = $(CXXFLAGS_DEBUG)
+CXXFLAGS = $(CXXFLAGS_PRODUCTION)
 PLUGIN_EXT = .so
 PLUGIN = $(PLUGIN_LIBRARY_NAME)$(PLUGIN_EXT)
 LDFLAGS = -shared -Wl,-soname=$(PLUGIN) $(VAMP_SDK_LIB_DIR)/libvamp-sdk.a -L/usr/local/lib -lfftw3f -Wl,--version-script=vamp-plugin.map
@@ -68,7 +68,7 @@ FindPulseBatch.o: FindPulseBatch.h MovingAverager.h
 
 AveragePower.o: AveragePower.h MovingAverager.h
 
-NewFindPulse.o: NewFindPulse.h SortedFifo.h DynamicQuantile.h PeakFinder.h MovingAverager.h FreqEstimator.h EdgeDetector.h PulseDetector.h KahanSum.h
+NewFindPulse.o: NewFindPulse.h RingBufferWithMax.h DynamicQuantile.h PeakFinder.h MovingAverager.h FreqEstimator.h EdgeDetector.h PulseDetector.h KahanSum.h
 
 FreqEstimator.o: FreqEstimator.h
 
@@ -82,7 +82,7 @@ testFreqEstimator: testFreqEstimator.o FreqEstimator.o
 testKahanSum: KahanSum.h testKahanSum.cpp
 	g++ -$(CXXFLAGS) -o testKahanSum testKahanSum.cpp
 
-testPeakFinder: PeakFinder.h testPeakFinder.cpp SortedFifo.h
+testPeakFinder: PeakFinder.h testPeakFinder.cpp RingBuffWithMax.h
 	g++ $(CXXFLAGS) -o testPeakFinder testPeakFinder.cpp
 
 testDynamicQuantile: DynamicQuantile.h testDynamicQuantile.cpp
@@ -109,8 +109,22 @@ testSlidingSpectrum: SlidingSpectrum.h testSlidingSpectrum.o SlidingSpectrum.o
 testSpectralPulseFinder: SpectralPulseFinder.h testSpectralPulseFinder.cpp SlidingSpectrum.o
 	g++ $(CXXFLAGS) -o testSpectralPulseFinder testSpectralPulseFinder.cpp SlidingSpectrum.o -lfftw3f
 
+testNarrowBandSpectralPulseFinder: NarrowBandSpectralPulseFinder.h testNarrowBandSpectralPulseFinder.cpp NarrowBandSlidingSpectrum.h
+	g++ $(CXXFLAGS) -o testNarrowBandSpectralPulseFinder testNarrowBandSpectralPulseFinder.cpp
+
 clean:
-	rm -f *.o
+	rm -f *.o                               \
+	testAccordion				\
+	testDynamicQuantile			\
+	testEdgeDetector			\
+	testFixedPulseDetector			\
+	testKahanMovingAverager			\
+	testKahanSum                            \
+	testNarrowBandSpectralPulseFinder	\
+	testPeakFinder				\
+	testSpectralPulseFinder			\
+	testVariablePulseDetector		 
+
 
 install: $(PLUGIN)
 	if [ "$(CXXFLAGS)" != "$(CXXFLAGS_DEBUG)" ]; then strip $(PLUGIN); fi
