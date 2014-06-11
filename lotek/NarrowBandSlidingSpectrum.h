@@ -24,7 +24,7 @@
 #include <complex>
 #include <boost/circular_buffer.hpp>
 #include "KahanMovingAverager.h"
-#include "MovingAveragerWithRecalc.h"
+// FIXME: maybe use this when working: #include "MovingAveragerWithRecalc.h"
 
 // FIXME: hardcoded float sample type
 

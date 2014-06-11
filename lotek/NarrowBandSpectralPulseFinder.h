@@ -58,10 +58,11 @@ public:
         min_Z (min_Z),
         max_noise_for_Z (max_noise_for_Z),
         nbss(width, bin_low, 1, num_bins),
-        total_pwr_buff (2 * width + 1),
+        total_pwr_buff (3 * width + 1),
+        total_pwr_buff_thresh (2 * width + 1),
         pk(width),
         sig_scale (1.0 / (width * width)),
-        bkgd_scale (0.5 / width)
+        bkgd_scale (0.5 / (width * width))
     {
         for (int i = 0; i < num_bins; ++i)
             bin_pwr_buff.push_back (boost::circular_buffer < float > (3 * width + 1));
@@ -81,10 +82,11 @@ public:
                 bin_pwr_buff[i].push_back(Pwr(nbss[i]));
 
             total_pwr_buff.push_back(nbss);
-            if (total_pwr_buff.full()) {
+            int s = total_pwr_buff.size();
+            if (s >= total_pwr_buff_thresh) {
                 // we have enough estimates of total power in bins
                 // to compare central window to mean(left, right)
-                float diff = total_pwr_buff[width] - (total_pwr_buff[0] + total_pwr_buff[2 * width]) / 2.0;
+                float diff = total_pwr_buff[s - width - 1] - (total_pwr_buff[s - 1] + total_pwr_buff[s - 2 * width - 1]) / 2.0;
                 if (pk(diff)) {
                     return process_pulse ();
                 }
@@ -96,35 +98,27 @@ public:
     float signal () {
         // return the power of the pulse (best bin only)
         // only valid immediately after operator() returns true
-        return signal(best_bin);
-    };
-
-    float signal (int i) {
-        // return the power of the pulse (bin i)
-        // only valid immediately after operator() returns true
-        return bin_pwr_buff[i][width] * sig_scale;
+        return pulse_signal;
     };
 
     float noise () {
         // return the bkgd noise of the pulse (best bin only)
         // only valid immediately after operator() returns true
-        return noise(best_bin);
-    };
-
-    float noise (int i) {
-        // return the bkgd noise of the pulse (bin i)
-        // only valid immediately after operator() returns true
-        float n = (bin_pwr_buff[i][0] + bin_pwr_buff[i][2 * width]) * bkgd_scale;
-        if (n == 0)
-            n = 2.5118864E-10; // -96 dB unlikely case, but we protect against it anyway
-        return n;
+        return pulse_noise;
     };
 
     double SNR () {
         // return the SNR for the pulse
         // only valid immediately after operator() returns true
-        float n = noise();
-        return (signal() - n) / n;
+        return pulse_SNR;
+    };
+
+    float freq () {        
+        // return the estimated frequency of the pulse, as a bin number
+        // only valid immediately after operator() returns true
+
+        return pulse_freq;
+
     };
 
     // FIXME: add Z functionality
@@ -139,40 +133,23 @@ public:
         // only valid immediately after a call to operator() returns true
         return (5 * width + 1) / 2;
     };
-       
-    float freq () {
-        // return the estimated frequency of the pulse, as a bin number
-
-        // use a cubic smoother to get the finer offset from the highest
-        // power bin and its neighbours.  The 4th neighbour is on
-        // the same side of the highest power bin as the higher of the
-        // two immediate neighbours.
-
-        if (num_bins < 4)
-            return best_bin;
-
-        int first_bin = best_bin - 1;
-        if (first_bin <= 0)
-            // Note: '<=' so that the case first_bin==0 isn't available in
-            // the third clause below
-            first_bin = 0;
-        else if (first_bin > num_bins - 4)
-            first_bin = num_bins - 4;
-        else if (smoothed_signal(first_bin) > smoothed_signal(first_bin + 2))
-            ;//-- first_bin;
-
-        float offset = cubicMaximize(smoothed_signal(first_bin),
-                                     smoothed_signal(first_bin + 1),
-                                     smoothed_signal(first_bin + 2),
-                                     smoothed_signal(first_bin + 3));
-        if (fabs(offset) < 3)
-            return bin_low + first_bin + offset;
-        else
-            // smoothed offset is too large
-            return best_bin;
-    };
 
 protected:
+    float signal_in_bin (int i) {
+        // return the power of the pulse (bin i)
+        // only valid immediately after operator() returns true
+        return bin_pwr_buff[i][width] * sig_scale;
+    };
+
+    float total_noise () {
+        // return the bkgd noise of the pulse (bin i)
+        // only valid immediately after operator() returns true
+        float n = (total_pwr_buff[0] + total_pwr_buff[2 * width]) * bkgd_scale;
+        if (n == 0)
+            n = 2.5118864E-10; // -96 dB unlikely case, but we protect against it anyway
+        return n;
+    };
+
     float smoothed_signal (int i) {
         // return the power of the pulse in the i'th bin, averaged
         // across 3 timesteps: pulse centre, and +/- 1/4 pulse width;
@@ -203,14 +180,55 @@ protected:
             }
         }
 
-        if (SNR() < min_SNR)
+
+        pulse_noise = total_noise() / num_bins; // mean noise per bin
+        pulse_SNR = (signal_in_bin(best_bin) - pulse_noise) / pulse_noise;
+
+        if (pulse_SNR < min_SNR)
             return false;
 
+        // continue processing, getting estimate of frequency and better
+        // estimates of power, noise
+
+        // use a cubic smoother to get the finer offset from the highest
+        // power bin and its neighbours.  The 4th neighbour is on
+        // the same side of the highest power bin as the higher of the
+        // two immediate neighbours.
+
+        if (num_bins < 4) {
+            pulse_freq = best_bin;
+        } else {
+            int first_bin = best_bin - 1;
+            if (first_bin <= 0)
+                // Note: '<=' so that the case first_bin==0 isn't available in
+                // the third clause below
+                first_bin = 0;
+            else if (first_bin > num_bins - 4)
+                first_bin = num_bins - 4;
+            else if (smoothed_signal(first_bin) > smoothed_signal(first_bin + 2))
+                ;//-- first_bin;
+
+            float pwr[4];
+            for (int i = 0; i < 4; ++i)
+                pwr[i] = smoothed_signal(first_bin + i);
+
+            float offset = cubicMaximize(pwr[0], pwr[1], pwr[2], pwr[3]);
+
+            if (fabs(offset) < 3) {
+                pulse_freq = bin_low + first_bin + offset;
+                pulse_signal = cubicInterpolate(pwr[0], pwr[1], pwr[2], pwr[3], offset);
+            } else {
+                pulse_signal = signal_in_bin(best_bin);
+            }
+        }
         return true;
     };
 
     static double cubicMaximize(double y0, double y1, double y2, double y3)
     {
+        // given function values at x=0, 1, 2, and 3,
+        // estimate the location of the local max.
+
         // Find coefficients of cubic
 
         double a, b, c;
@@ -260,8 +278,25 @@ protected:
                 return x2;
             }
     };
+
+    static double cubicInterpolate(double y0, double y1, double y2, double y3, double x)
+    {
+        // given function values at x=0, 1, 2, and 3,
+        // interpolate value at x=x assuming the function is a cubic
+
+        double a, b, c, d;
         
-    protected:
+        a = y0 / -6.0 + y1 / 2.0 - y2 / 2.0 + y3 / 6.0;
+        b = y0 - 5.0 * y1 / 2.0 + 2.0 * y2 - y3 / 2.0;
+        c = -11.0 * y0 / 6.0 + 3.0 * y1 - 3.0 * y2 / 2.0 + y3 / 3.0;
+        d = y0;
+        
+        double xx = x * x;
+        double xxx = xx * x;
+        
+        return a * xxx + b * xx + c * x + d;
+    };
+        
 
     size_t width; // samples per pulse
     int bin_low; // min bin we look for pulses in
@@ -277,6 +312,7 @@ protected:
     std::vector < boost::circular_buffer < float > > bin_pwr_buff; // buffer of power for bins, for retrieving values at pulse location
 
     boost::circular_buffer < float > total_pwr_buff;  // buffer of total power across bins
+    int total_pwr_buff_thresh; // how many samples needed in total power buff before we can calculate sig - noise
 
     PeakFinder < double > pk; // find peaks in the difference between power at time step i and mean power at time steps (i - width), (i + width)
     
@@ -286,7 +322,11 @@ protected:
 
     float sig_scale; // multiplier to get signal power 
     float bkgd_scale; // multipler to get noise power
-
+    
+    float pulse_SNR;
+    float pulse_freq;
+    float pulse_signal;
+    float pulse_noise;
 };
 
 #endif // _NARROW_BAND_SPECTRAL_PULSE_FINDER_H_
