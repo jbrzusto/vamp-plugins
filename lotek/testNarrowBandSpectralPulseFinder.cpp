@@ -17,9 +17,8 @@ main (int argc, char *argv[])
 RATE: sample rate (samples per second)\n\
 Find fixed-width pulses in the spectrum of an input stream of complex numbers.\n\
 WIDTH: width of pulses to find, in samples\n\
-BKGWIDTH: width of background window on each side, in samples\n\
-BINLOW: first bin of interest\n\
-BINHIGH: last bin of interest\n\
+FREQLWO: lowest frequency of interest, in kHz\n\
+FREQHIGH: highest frequency of interest, in kHz\n\
 MINSNRDB: min signal to noise ratio of a pulse, in dB\n\
 MINZ: min z-score for a pulse's sig - noise value.\n\
 MAXNOISEZ: max noise (dB) at which the MINZ criterion is used.\n\
@@ -31,11 +30,15 @@ Data are read from FILE, if specified, or stdin as R1 I1 R2 I2 R3 I3 ...\n\
   
   int rate          = atoi(argv[1]);
   int width         = atoi(argv[2]);
-  int minbin        = atoi(argv[3]);
-  int maxbin        = atoi(argv[4]);
+  double minfreq    = atof(argv[3]);
+  double maxfreq    = atof(argv[4]);
   double minsnrdb   = atof(argv[5]);
   double minz       = atof(argv[6]);
   double maxnoisez  = atof(argv[7]);
+
+  double freqstep = rate / (float) width;
+  int minbin        = floor(minfreq * 1000.0 / freqstep);
+  int maxbin        = ceil(maxfreq * 1000.0 / freqstep);
 
   std::istream * in = (argc > 8) ? new std::ifstream(argv[8]) : & std::cin;
 

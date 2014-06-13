@@ -176,7 +176,7 @@ FindNarrowBandPulsePlugin::getParameterDescriptors() const
     d.name = "Minimum Signal to Noise Ratio";
     d.description = "Minimum ratio of signal (with bkgd subtracted) to bkgd, in dB";
     d.unit = "dB";
-    d.minValue = 0;
+    d.minValue = -30;
     d.maxValue = 100;
     d.defaultValue = FindNarrowBandPulsePlugin::m_default_min_SNR_dB;
     d.isQuantized = false;
@@ -319,7 +319,7 @@ FindNarrowBandPulsePlugin::process(const float *const *inputBuffers,
             // how many samples back was the centre of the pulse?
             // this is only as precise as the fft step (fft_size - overlap)
 
-            int centre = (int) i - (int) m_nbpf->location() + m_plen_samples / 2.0;
+            int centre = (int) i - (int) m_nbpf->location();
             Vamp::RealTime ts = timestamp + Vamp::RealTime::frame2RealTime(centre, (size_t) m_inputSampleRate);
  
             // dump the feature

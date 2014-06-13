@@ -108,6 +108,9 @@ testKahanMovingAverager: KahanMovingAverager.h testKahanMovingAverager.cpp
 testSlidingSpectrum: SlidingSpectrum.h testSlidingSpectrum.o SlidingSpectrum.o
 	g++ $(CXXFLAGS) -o testSlidingSpectrum SlidingSpectrum.o testSlidingSpectrum.cpp -lfftw3f
 
+testNarrowBandSlidingSpectrum: NarrowBandSlidingSpectrum.h testNarrowBandSlidingSpectrum.o 
+	g++ $(CXXFLAGS) -o testNarrowBandSlidingSpectrum testNarrowBandSlidingSpectrum.cpp
+
 testSpectralPulseFinder: SpectralPulseFinder.h testSpectralPulseFinder.cpp SlidingSpectrum.o
 	g++ $(CXXFLAGS) -o testSpectralPulseFinder testSpectralPulseFinder.cpp SlidingSpectrum.o -lfftw3f
 

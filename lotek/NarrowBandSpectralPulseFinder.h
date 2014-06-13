@@ -142,7 +142,7 @@ protected:
     };
 
     float total_noise () {
-        // return the bkgd noise of the pulse (bin i)
+        // return the bkgd noise of the pulse
         // only valid immediately after operator() returns true
         float n = (total_pwr_buff[0] + total_pwr_buff[2 * width]) * bkgd_scale;
         if (n == 0)
@@ -157,9 +157,10 @@ protected:
         // samples before doing an FFT (which we're not doing)
 
         float ss = 0.0;
-        for (int j = -1; j <= 1; ++j) 
+        int ns = 1;
+        for (int j = -ns; j <= ns; ++j) 
             ss += bin_pwr_buff[i][width + j * (signed) width / 4];
-        return ss * sig_scale;
+        return ss * sig_scale / (float) (2 * ns + 1);
     };
 
     bool process_pulse () {
@@ -182,7 +183,7 @@ protected:
 
 
         pulse_noise = total_noise() / num_bins; // mean noise per bin
-        pulse_SNR = (signal_in_bin(best_bin) - pulse_noise) / pulse_noise;
+        pulse_SNR = (smoothed_signal(best_bin) - pulse_noise) / pulse_noise;
 
         if (pulse_SNR < min_SNR)
             return false;
@@ -218,8 +219,12 @@ protected:
                 pulse_freq = bin_low + first_bin + offset;
                 pulse_signal = cubicInterpolate(pwr[0], pwr[1], pwr[2], pwr[3], offset);
             } else {
-                pulse_signal = signal_in_bin(best_bin);
+                pulse_signal = smoothed_signal(best_bin);
             }
+            // re-estimate, based on new signal estimate
+            pulse_SNR = (pulse_signal - pulse_noise) / pulse_noise;
+            if (pulse_SNR < min_SNR)
+                return false;
         }
         return true;
     };

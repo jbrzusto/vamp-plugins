@@ -24,6 +24,8 @@
 #include <complex>
 #include <boost/circular_buffer.hpp>
 #include "KahanMovingAverager.h"
+#include "vamp-plugins-common.h"
+
 // FIXME: maybe use this when working: #include "MovingAveragerWithRecalc.h"
 
 // FIXME: hardcoded float sample type
@@ -72,7 +74,8 @@ public:
             units[i] = new std::complex < float > [win_size];
 
             for (int j = 0; j < win_size; ++j)
-                units[i][j] = exp (std::complex < float > (0, - 2.0 * M_PI * (freq_low + i * freq_step) * j / win_size));
+                // Note: do exp calculation in double
+                units[i][j] = exp (std::complex < double > (0, - 2.0 * M_PI * (freq_low + i * (double) freq_step) * j / win_size));
         }
     };
         
