@@ -85,7 +85,7 @@ SNRZFindPulse::getIdentifier() const
     // we give this the same name as was used by the very
     // different previous incarnation into early 2014
 
-    return "findpulsefdbatch";
+    return "snrzfindpulse";
 }
 
 string
