@@ -81,6 +81,7 @@ void dotest(DATATYPE initial) {
 
 }
 
+int
 main (int argc, char * argv[]) {
   std::string type;
   long double initial = 0.0;
