@@ -23,13 +23,24 @@ class KahanSum {
     carry = 0.0;
   };
 
+#pragma GCC push_options
+#pragma GCC optimize ("O2")
+
+
+    // NB: don't allow GCC O3 optimization, since that will
+    // optimize out the Kahan summation
+
   KahanSum & operator += (const DATATYPE & x) {
+
     carry += x;
     DATATYPE newsum = sum + carry;
     carry = carry - (newsum - sum);
     sum = newsum;
+
     return * this;
   };
+
+#pragma GCC pop_options
 
   KahanSum & operator -= (const DATATYPE & x) {
     return *this += (-x);
