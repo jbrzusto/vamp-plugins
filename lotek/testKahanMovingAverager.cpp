@@ -13,7 +13,7 @@ main (int argc, char *argv[])
   if (argc != 3) {
     std::cout << 
 "Usage: testKahanMovingAverager WINSIZE NUMSAMPLES\n\
-calculate a running moving aveerage using a window of size WINSIZE\n\
+calculate a running moving average using a window of size WINSIZE\n\
 in a stream of NUMSAMPLES random floating point numbers in [0, 1].\n\
 Specify NUMSAMPLES as 0 to read samples from stdin.\n\
 ";
@@ -23,7 +23,7 @@ Specify NUMSAMPLES as 0 to read samples from stdin.\n\
   srand48(time(0));
 
   int m = atoi(argv[1]);
-  MovingAverager < float, double > ma(m);
+  KahanMovingAverager < float, double > ma(m);
 
   int n = atoi(argv[2]);
 
