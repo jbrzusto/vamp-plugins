@@ -76,7 +76,9 @@ public:
 
         double ms_left = ms_bkgd_buf[ms_bkgd_buf.size() - left_offset ];
         double ms_sig = ms_win_buf[ms_win_buf.size() - sig_offset];
-        double diff = ms_sig - (ms_right + ms_left) / 2.0;
+        //        double diff = ms_sig - (ms_right + ms_left) / 2.0;
+        // detect only left edge:
+        double diff = ms_sig - (ms_left);
 
         // send the difference through the peak finder
         if (pk(diff)) {
@@ -128,7 +130,7 @@ public:
   TYPE bkgd () {
     // return the mean of the values in the left and right background windows
     // only valid immediately after a call to operator() returns true
-    return (ms_bkgd_buf[0] + ms_bkgd_buf[width + bkgd_width + 2 * avoid_width]) * bkgd_scale;
+    return ms_bkgd_buf[0] * bkgd_scale;
   };
 
   TYPE bkgd2 () {

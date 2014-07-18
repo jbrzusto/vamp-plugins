@@ -82,7 +82,7 @@ class PulseFinder {
 
     if (n >= m_noise_width) {
       // a sample is moving from the right noise zone to the central signal zone
-      m_noise  -= m_sample_buf[n - m_noise_width];
+      //      m_noise  -= m_sample_buf[n - m_noise_width];
       m_signal += m_sample_buf[n - m_noise_width];
     }
     if (n >= m_back) {
@@ -92,7 +92,7 @@ class PulseFinder {
     }
 
     // the new sample moves into the right noise zone
-    m_noise += d;
+    //    m_noise += d;
     m_sample_buf.push_back(d);
 
     // we might need to do a full recalculation of running sums,
@@ -103,7 +103,7 @@ class PulseFinder {
 	m_recalc_countdown = m_recalc_interval;
 	m_signal = m_noise = 0.0;
 	for (int j = 0; j < m_noise_width; ++j)
-	  m_noise += m_sample_buf[j] + m_sample_buf[j + m_back];
+	  m_noise += m_sample_buf[j];// + m_sample_buf[j + m_back];
 	for (int j = m_noise_width; j < m_back; ++j)
 	  m_signal += m_sample_buf[j];
       }
