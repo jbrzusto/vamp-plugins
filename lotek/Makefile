@@ -25,7 +25,7 @@ PLUGIN_INSTALL_DIR = ~/.vamp
 
 # Edit this to list one .o file for each .cpp file in your plugin project
 #
-PLUGIN_CODE_OBJECTS = FindNarrowBandPulsePlugin.o SNRZFindPulse.o SlidingSpectrum.o FindPulseFD.o FindPulseFDBatch.o FindPulseTDSNRZ.o FreqEstimator.o
+PLUGIN_CODE_OBJECTS = SNRZFindPulse.o SlidingSpectrum.o FindPulseFD.o FindPulseFDBatch.o FreqEstimator.o
 
 # Edit this to the location of the Vamp plugin SDK, relative to your
 # project directory
@@ -36,8 +36,8 @@ VAMP_SDK_LIB_DIR = /usr/lib
 CXXFLAGS_PRODUCTION = -std=c++0x -I$(VAMP_SDK_INCLUDE_DIR) -Wall -fPIC -O3 -ffast-math  -ftree-vectorize
 CXXFLAGS_DEBUG = -std=c++0x -I$(VAMP_SDK_INCLUDE_DIR) -Wall -fPIC -g3 
 
-##CXXFLAGS = $(CXXFLAGS_DEBUG)
-CXXFLAGS = $(CXXFLAGS_PRODUCTION)
+CXXFLAGS = $(CXXFLAGS_DEBUG)
+##CXXFLAGS = $(CXXFLAGS_PRODUCTION)
 PLUGIN_EXT = .so
 PLUGIN = $(PLUGIN_LIBRARY_NAME)$(PLUGIN_EXT)
 LDFLAGS = -shared -Wl,-soname=$(PLUGIN) $(VAMP_SDK_LIB_DIR)/libvamp-sdk.a -L/usr/local/lib -lfftw3f -Wl,--version-script=vamp-plugin.map
@@ -48,7 +48,7 @@ $(PLUGIN): $(PLUGIN_CODE_OBJECTS) lotek-plugins.o
 
 lotek-plugins.o: $(PLUGIN_CODE_OBJECTS) lotek-plugins.cpp
 
-SNRZFindPulse.o: SpectralPulseFinder.h SNRZFindPulse.h FixedPulseDetector.h KahanMovingAverager.h SlidingSpectrum.h PeakFinder.h
+SNRZFindPulse.o: SpectralPulseFinder.h SNRZFindPulse.h FixedPulseDetector.h MovingSum.h SlidingSpectrum.h PeakFinder.h
 
 FindPulseTDSNRZ.o: FindPulseTDSNRZ.h FixedPulseDetector.h KahanMovingAverager.h SlidingSpectrum.h PeakFinder.h FreqEstimator.h
 
@@ -104,6 +104,9 @@ testAccordion: Accordion.h testAccordion.cpp
 
 testKahanMovingAverager: KahanMovingAverager.h testKahanMovingAverager.cpp
 	g++ $(CXXFLAGS) -o testKahanMovingAverager testKahanMovingAverager.cpp
+
+testMovingSum: MovingSum.h testMovingSum.cpp
+	g++ $(CXXFLAGS) -o testMovingSum testMovingSum.cpp
 
 testSlidingSpectrum: SlidingSpectrum.h testSlidingSpectrum.o SlidingSpectrum.o
 	g++ $(CXXFLAGS) -o testSlidingSpectrum SlidingSpectrum.o testSlidingSpectrum.cpp -lfftw3f

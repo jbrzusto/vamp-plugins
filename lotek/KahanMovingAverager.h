@@ -35,6 +35,10 @@ class KahanMovingAverager {
     return m_total;
   };
 
+  AVGTYPE rem() { // get the remainder being carried
+    return m_total.rem();
+  };
+
   bool operator() (const DATATYPE & d) { 
     // process a value from the data stream
     // return true if a (full window) moving average is available
@@ -44,8 +48,11 @@ class KahanMovingAverager {
     buf.push_back(d);
     m_total += d;
     return buf.full();
-  }
+  };
 
+  bool is_linearized() {
+    return buf.is_linearized();
+  };
 
  protected:
   boost::circular_buffer < DATATYPE > buf;

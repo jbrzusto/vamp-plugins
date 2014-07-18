@@ -37,6 +37,6 @@ Specify NUMSAMPLES as 0 to read samples from stdin.\n\
       std::cout << val << std::endl;
     }
     if (ma(val))
-      std::cout << "av: " << ma << std::endl;
+      std::cout << "av: " << ma << ";  sum: " << ma.sum()<< ";  carry: " << ma.rem() << "; linear? " << ma.is_linearized() << std::endl;
   }
 }

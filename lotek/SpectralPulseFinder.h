@@ -4,7 +4,7 @@
   SpectralPulseFinder.h - find fixed-width pulses in the power
   spectrum of a stream of complex values.  Pulses are distinguished by
   having SNR exceeding a threshold, or S minus N having high
-  Z score (using sd(N) as the denominator)
+  Z score (using SE(N) as the denominator)
 
   Copyright 2014 John Brzustowski
 
@@ -23,6 +23,7 @@
 #include "vamp-plugins-common.h"
 #include "SlidingSpectrum.h"
 #include "FixedPulseDetector.h"
+#include "VectorRingBuffer.h"
 
 // FIXME: hardcoded float sample type
 // NOTE: bin numbers are relative to the padded fft.
@@ -55,29 +56,32 @@ public:
         bkgd (bkgd),
         win_size (win_size),
         pad (pad), 
+        numbins (pad * win_size),
         overlap (overlap),
+        step (win_size - overlap),
+        avoid (win_size / step),
         minbin (minbin),
         maxbin (maxbin),
-        numbins (maxbin - minbin + 1),
+        numwatchbin (maxbin - minbin + 1),
         min_SNR_dB (min_SNR_dB),
         min_z (min_z),
         max_noise_for_Z (max_noise_for_Z),
-        ss(win_size, pad, overlap),
+        width_in_spectrum(std::max(1.0, floor((width - win_size) / (double) step))),
+        bkgd_in_spectrum (std::max(1.0, ceil(1.0 + bkgd / (double) step))),
+        hist_size (2 * bkgd_in_spectrum + avoid + width_in_spectrum + 1),
+        ss(win_size, (pad - 1) * win_size, overlap),
         pd()
     {
-        // Note: pulse width is specified in the time domain, but pulses
+    // Note: pulse width is specified in the time domain, but pulses
         // are detected in the sliding spectrum.  In the latter, the 'width'
         // of a pulse being sought corresponds to the number of FFTs
         // that will cover the samples in the time-domain pulse, taking into
         // account window overlap.  Padding does not need to be considered here.
 
-        width_in_spectrum = ceil(1.0 + width / (double) (win_size - overlap));
-
-        bkgd_in_spectrum = ceil(1.0 + bkgd / (double) (win_size - overlap));
-
         for (int i = 0; i < numbins; ++i) 
             pd.push_back(FixedPulseDetector < float > ( width_in_spectrum,
                                                         bkgd_in_spectrum,
+                                                        avoid,
                                                         exp10(min_SNR_dB / 10.0), // min_SNR in linear units
                                                         min_z,
                                                         max_noise_for_Z * (win_size) // scale for FFT window size
@@ -93,13 +97,9 @@ public:
         if (i >= 0) 
             return i;
         else 
-            return i + win_size * pad;
+            return i + numbins;
     }
             
-    double Power(const std::complex < float >  &d) {
-        return d.real()*d.real() + d.imag() * d.imag();
-    };
-
     bool operator () (const std::complex < float >  &d) {
         // process a sample; return true if a pulse has been found
 
@@ -107,19 +107,23 @@ public:
         float bestsig = -1;
 
         if (ss(d)) {
-            // a new fourier spectrum is available; push power values for each
-            // bin of interest into the appropriate pulse detector
+            // a new fourier spectrum is available; calculate power
+            // values for bins of interest, buffer them, get best power, see
+            // if a peak has been found in best power
 
+            std::complex < float > * fft_out = ss;
 
-            for (int i = 0; i < numbins; ++i) {
+            for (int i = 0; i < numwatchbin; ++i) {
                 int ii = ith_bin(i);
-                if ( pd[i](std::abs(Power(ss[ii])))) {
-                    if (bestbin == -1 || pd[i].signal() > bestsig) {
+                float p = Pwr(fft_out[ii]);
+                if (pd[i](p)) {
+                    float sigdif = pd[i].sigdif();
+                    if (sigdif > bestsig || bestbin < 0) {
                         bestbin = i;
-                        bestsig = pd[i].signal();
+                        bestsig = sigdif;
                     }
                 }
-            }
+            };
         }
         return bestbin >= 0;
     };
@@ -154,7 +158,7 @@ public:
         // how many samples back from most recently processed sample is first sample in
         // detected pulse?  
         // only valid immediately after a call to operator() returns true
-        return (width_in_spectrum + 2 * bkgd_in_spectrum) * (win_size - overlap);
+        return (hist_size - 1) * step;
     };
        
     protected:
@@ -163,10 +167,13 @@ public:
     size_t bkgd; // samples in the (half) background window
     int win_size; // samples per FFT (not including zero padding)
     int pad;     // number of zero samples to pad with (for tighter freq. estimation)
+    int numbins; // real number of FFT bins (i.e. including padding)
     int overlap; // overlap between consecutive FFT windows, in samples
+    int step; // win_size - overlap; number of new samples per FFT
+    int avoid; // number of FFT steps to skip on either side of signal window to avoid leakage into background window
     int minbin; // min bin we look for pulses in
     int maxbin; // max bin we look for pulses in
-    int numbins; // number of bins we're looking in
+    int numwatchbin; // number of bins we're looking in
 
     double min_SNR_dB; // minimum signal to noise ratio for a pulse
     double min_z; // maximum probability for a pulse
@@ -175,11 +182,15 @@ public:
     int width_in_spectrum; // width of pulse, in numbers of FFTs
     int bkgd_in_spectrum; // width of background, in numbers of FFTs
 
+    int hist_size; // number of bin power time slots we need to keep to
+    // use bin power once pulse has been detected
+
     SlidingSpectrum ss;
 
-    std::vector < FixedPulseDetector < float > > pd; // vector of pulse detectors, one per bin in the range minbin..maxbin
-    
+    std::vector < FixedPulseDetector < float > > pd; // pulse detectors, to find pulse in values of largest power across bins
+
     int bestbin;
+
 };
 
 #endif // _SPECTRAL_PULSE_FINDER_H_

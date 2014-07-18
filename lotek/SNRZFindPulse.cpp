@@ -386,10 +386,12 @@ SNRZFindPulse::process(const float *const *inputBuffers,
         float I = inputBuffers[0][i];
         float Q = inputBuffers[1][i];
 
-        m_dc_offset_I = (2047.0 * m_dc_offset_I + I) / 2048.0;
-        m_dc_offset_Q = (2047.0 * m_dc_offset_Q + Q) / 2048.0;
+        // m_dc_offset_I = (2047.0 * m_dc_offset_I + I) / 2048.0;
+        // m_dc_offset_Q = (2047.0 * m_dc_offset_Q + Q) / 2048.0;
 
-        std::complex < float > sample (I - m_dc_offset_I, Q - m_dc_offset_Q);
+        // std::complex < float > sample (I - m_dc_offset_I, Q - m_dc_offset_Q);
+
+        std::complex < float > sample (I, Q);
 
         // send it to the pulse finder
 

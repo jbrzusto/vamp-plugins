@@ -137,6 +137,11 @@ public:
         return output[i];
     };
 
+    operator std::complex < float > * () {
+        // return a pointer to the FFT output
+        return output;
+    };
+
     static std::string fftw_wisdom_filename;
 
 protected:

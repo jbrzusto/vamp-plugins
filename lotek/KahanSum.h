@@ -24,7 +24,7 @@ class KahanSum {
   };
 
 #pragma GCC push_options
-#pragma GCC optimize ("O2")
+#pragma GCC optimize ("O0")
 
 
     // NB: don't allow GCC O3 optimization, since that will
@@ -32,11 +32,17 @@ class KahanSum {
 
   KahanSum & operator += (const DATATYPE & x) {
 
-    carry += x;
-    DATATYPE newsum = sum + carry;
-    carry = carry - (newsum - sum);
-    sum = newsum;
-
+    if (std::abs(sum) >= std::abs(x)) {
+      carry += x;
+      DATATYPE newsum = sum + carry;
+      carry = carry - (newsum - sum);
+      sum = newsum;
+    } else {
+      // new entry is larger than sum, swap roles.
+      DATATYPE newsum = x + sum;
+      carry += sum - (newsum - x);
+      sum = newsum;
+    }
     return * this;
   };
 
@@ -55,6 +61,10 @@ class KahanSum {
 
   operator DATATYPE () {
     return sum;
+  };
+
+  DATATYPE rem() {
+    return carry;
   };
 
  private:

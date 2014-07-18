@@ -10,12 +10,14 @@
 int
 main (int argc, char *argv[])
 {
-  if (argc != 7) {
+  if (argc != 8) {
     std::cout << 
-"Usage: testPulseDetector WIDTH BGWIDTH MINSNRDB MINZ MAXNOISEZDB NUMSAMPLES\n\
+"Usage: testPulseDetector WIDTH BGWIDTH AVOID MINSNRDB MINZ MAXNOISEZDB NUMSAMPLES\n\
 Find large magnitude or low probability edges in a data stream.\n\
 WIDTH: pulse width, in samples\n\
 BGWIDTH: background width, in samples (on each side of pulse)\n\
+AVOID: avoidance zone, in samples (on each side of pulse between pulse and BKGD)\n\
+to remove leakage between pulse and correlated background samples\n\
 MINSNRDB: minimum pulse signal to noise ration, in dB\n\
 MINZ: minimum z-score for difference between signal and noise\n\
 MAXNOISEZDB: maximum noise at which z-score is used to accept pulse\n\
@@ -29,13 +31,14 @@ Pulses will be detected no closer than WIDTH samples apart\n";
 
   int width      = atoi(argv[1]);
   int bgwidth    = atoi(argv[2]);
-  double minsnrdB = atof(argv[3]);
+  int avoid      = atoi(argv[3]);
+  double minsnrdB = atof(argv[4]);
   double minsnr  = undB(minsnrdB);
-  double minz    = atof(argv[4]);
-  double maxnoisez = undB(atof(argv[5]));
-  int m          = atoi(argv[6]);
+  double minz    = atof(argv[5]);
+  double maxnoisez = undB(atof(argv[6]));
+  int m          = atoi(argv[7]);
 
-  FixedPulseDetector < float > pd (width, bgwidth, minsnr, minz, maxnoisez);
+  FixedPulseDetector < float > pd (width, bgwidth, avoid, minsnr, minz, maxnoisez);
   unsigned long long count = 0;
 
   int i;
