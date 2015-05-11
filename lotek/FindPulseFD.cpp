@@ -499,10 +499,7 @@ FindPulseFD::process(const float *const *inputBuffers,
                 for (int j = m_first_freq_bin; j <= m_last_freq_bin; ++j) {
                     // for each bin, process total power across both channels in that bin
                     
-                    float pwr = 0.0;
-                    for (unsigned short ch = 0; ch < m_channels; ++ch)
-                        pwr += m_fft[ch][j][0] * m_fft[ch][j][0] + m_fft[ch][j][1] * m_fft[ch][j][1];
-
+                    float pwr = spectralPower(m_fft, j);
                     m_freq_bin_pulse_finder[j].process(pwr);
                 }            
                 // Any frequency bin may have seen a pulse (local max).
@@ -557,9 +554,7 @@ FindPulseFD::process(const float *const *inputBuffers,
                     float max_power = 0.0;
                     int max_bin = -1;
                     for (int j = bin_low; j < bin_high; ++j) {
-                        float pwr = 0.0;
-                        for (unsigned short ch = 0; ch < m_channels; ++ch )
-                            pwr += m_fft_fine[ch][j][0] * m_fft_fine[ch][j][0] + m_fft_fine[ch][j][1] * m_fft_fine[ch][j][1];
+                        float pwr = spectralPower(m_fft_fine, j);
                         if (pwr > max_power) {
                             max_power = pwr;
                             max_bin = j;
@@ -570,66 +565,17 @@ FindPulseFD::process(const float *const *inputBuffers,
                     bin_low = std::max(2, std::min(m_plen_in_samples / 2 - 4, max_bin - 1));  // avoid the DC bin
 
                     float bin_est = -1.0;
-                    float phase[2] = {0, 0}; // 0: I, 1: Q
                     if (bin_low + 3 <= m_plen_in_samples / 2) {
                         float pwr[4];
-                        for (int j = bin_low; j < bin_low + 4; ++j) {
-                            pwr[j - bin_low] = 0;
-                            for (unsigned short ch = 0; ch < m_channels; ++ch )
-                                pwr[j - bin_low] += m_fft_fine[ch][j][0] * m_fft_fine[ch][j][0] + m_fft_fine[ch][j][1] * m_fft_fine[ch][j][1];
-                        }
+                        for (int j = bin_low; j < bin_low + 4; ++j)
+                            pwr[j - bin_low] = spectralPower(m_fft_fine, j);
                         // get the estimate of the peak beat frequency (in bin units)
                         bin_est = bin_low + cubicMaximize(pwr[0], pwr[1], pwr[2], pwr[3]);
-                        if (bin_est < 0)
-			    bin_est = - bin_est;
-			if (bin_est > bin_high) {
-                            // if there's  a wonky estimate, then don't use it; FIXME: is this correct?
-                            bin_est = max_bin;
-			    phase[0] = phase[1] = -1;
-                        } 
-			if (m_channels == 2) {
-                            // if we have 2 channels, assume they form
-                            // an I/Q pair (as for the funcubedongle),
-                            // and use this to estimate the correct
-                            // sign for the beat frequency
-
-                            // Estimate the phase angle at peak
-                            // frequency for each channel (I and Q).
-                            // I'm not sure this approach to cubic
-                            // interpolation of a circular function is
-                            // correct, but it seems to work.  We map
-                            // phase angles to locations on the unit
-                            // circle, then perform cubic
-                            // interpolataion of x and y coordinates
-                            // separately, then project back to a phase
-                            // angle.
-                            
-                            float phasorx[2][4], phasory[2][4];
-                            for (int i = 0; i < 2; ++i) {
-                                for (int j=0; j < 4; ++j) {
-                                    float theta = atan2f(m_fft_fine[i][j+bin_low][1], m_fft_fine[i][j+bin_low][0]);
-                                    phasorx[i][j] = cosf(theta);
-                                    phasory[i][j] = sinf(theta);
-                                }
-                                phase[i] = atan2(cubicInterpolate(phasory[i][0], phasory[i][1], phasory[i][2], phasory[i][3], bin_est - bin_low),
-                                                 cubicInterpolate(phasorx[i][0], phasorx[i][1], phasorx[i][2], phasorx[i][3], bin_est - bin_low));
-                            }
-
-                            // If shorter phase change from I to Q is positive, then reverse sign of
-                            // frequency estimate.  I don't understand why this works - would have thought
-                            // that what mattered was whether the phase change was > or < 90 degrees.
-                            // Regardless, it's not a very stable sign estimator for frequencies < 1 kHz,
-                            // but then neither is the frequency estimator itself.
-
-                            if ((phase[0] < phase[1] && phase[1] - phase[0] < M_PI)
-                                || (phase[0] > phase[1] && phase[0] - phase[1] > M_PI))
-                                bin_est  = - bin_est;
-                        }
                     } else {
                         bin_est = max_bin;
                     }
 
-                    if (fabs(fabs(bin_est) - max_bin) <= 4) {
+                    if (fabs(bin_est - max_bin) <= 4) {
 
                         std::stringstream ss;
                         ss.precision(5);

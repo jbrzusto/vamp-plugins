@@ -100,7 +100,15 @@ public:
 
     FeatureSet getRemainingFeatures();
     
-
+    float inline spectralPower(fftwf_complex * buf[2], int j) {
+        float rr = buf[0][j][0], ii = buf[0][j][1];
+        if (m_channels == 2) {
+            rr += buf[1][j][0];
+            ii += buf[1][j][1];
+        }
+        return rr*rr + ii*ii;
+    };
+    
 protected:
     size_t m_channels;
     size_t m_stepSize;
