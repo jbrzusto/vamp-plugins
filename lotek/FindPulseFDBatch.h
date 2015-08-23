@@ -100,6 +100,15 @@ public:
 
     FeatureSet getRemainingFeatures();
 
+    // compute spectral power in an FFT bin for one or two channels
+    float inline spectralPower(fftwf_complex * buf[2], int j) {
+        float rr = buf[0][j][0], ii = buf[0][j][1];
+        if (m_channels == 2) {
+            rr += buf[1][j][0]; ii += buf[1][j][1];
+        }
+        return rr*rr + ii*ii;
+    };
+
 protected:
     size_t m_channels;
     size_t m_stepSize;
@@ -157,6 +166,7 @@ protected:
     MovingAverager < float, float > m_dcma[2]; // moving averager for removing DC on each channel
 
     static const char * fftw_wisdom_filename;
+
 };
 
 

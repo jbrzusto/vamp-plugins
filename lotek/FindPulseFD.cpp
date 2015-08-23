@@ -499,9 +499,7 @@ FindPulseFD::process(const float *const *inputBuffers,
                 for (int j = m_first_freq_bin; j <= m_last_freq_bin; ++j) {
                     // for each bin, process total power across both channels in that bin
                     
-                    float pwr = 0.0;
-                    for (unsigned short ch = 0; ch < m_channels; ++ch)
-                        pwr += m_fft[ch][j][0] * m_fft[ch][j][0] + m_fft[ch][j][1] * m_fft[ch][j][1];
+                    float pwr = spectralPower(m_fft, j);
 
                     m_freq_bin_pulse_finder[j].process(pwr);
                 }            
@@ -557,9 +555,7 @@ FindPulseFD::process(const float *const *inputBuffers,
                     float max_power = 0.0;
                     int max_bin = -1;
                     for (int j = bin_low; j < bin_high; ++j) {
-                        float pwr = 0.0;
-                        for (unsigned short ch = 0; ch < m_channels; ++ch )
-                            pwr += m_fft_fine[ch][j][0] * m_fft_fine[ch][j][0] + m_fft_fine[ch][j][1] * m_fft_fine[ch][j][1];
+                        float pwr = spectralPower(m_fft_fine, j);
                         if (pwr > max_power) {
                             max_power = pwr;
                             max_bin = j;
@@ -573,11 +569,8 @@ FindPulseFD::process(const float *const *inputBuffers,
                     float phase[2] = {0, 0}; // 0: I, 1: Q
                     if (bin_low + 3 <= m_plen_in_samples / 2) {
                         float pwr[4];
-                        for (int j = bin_low; j < bin_low + 4; ++j) {
-                            pwr[j - bin_low] = 0;
-                            for (unsigned short ch = 0; ch < m_channels; ++ch )
-                                pwr[j - bin_low] += m_fft_fine[ch][j][0] * m_fft_fine[ch][j][0] + m_fft_fine[ch][j][1] * m_fft_fine[ch][j][1];
-                        }
+                        for (int j = bin_low; j < bin_low + 4; ++j)
+                            pwr[j - bin_low] = spectralPower(m_fft_fine, j);
                         // get the estimate of the peak beat frequency (in bin units)
                         bin_est = bin_low + cubicMaximize(pwr[0], pwr[1], pwr[2], pwr[3]);
                         if (bin_est < 0)
