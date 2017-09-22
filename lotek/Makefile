@@ -31,16 +31,16 @@ PLUGIN_CODE_OBJECTS = SNRZFindPulse.o SlidingSpectrum.o FindPulseFD.o FindPulseF
 # project directory
 #
 VAMP_SDK_INCLUDE_DIR = /usr/include/
-VAMP_SDK_LIB_DIR = /usr/lib
+VAMP_SDK_LIB_DIR = /usr/lib/x86_64-linux-gnu
 
 CXXFLAGS_PRODUCTION = -std=c++0x -I$(VAMP_SDK_INCLUDE_DIR) -Wall -fPIC -O3 -ffast-math  -ftree-vectorize
-CXXFLAGS_DEBUG = -std=c++0x -I$(VAMP_SDK_INCLUDE_DIR) -Wall -fPIC -g3 
+CXXFLAGS_DEBUG = -std=c++0x -I$(VAMP_SDK_INCLUDE_DIR) -Wall -fPIC -g3
 
 CXXFLAGS = $(CXXFLAGS_DEBUG)
 ##CXXFLAGS = $(CXXFLAGS_PRODUCTION)
 PLUGIN_EXT = .so
 PLUGIN = $(PLUGIN_LIBRARY_NAME)$(PLUGIN_EXT)
-LDFLAGS = -shared -Wl,-soname=$(PLUGIN) $(VAMP_SDK_LIB_DIR)/libvamp-sdk.a -L/usr/local/lib -lfftw3f -Wl,--version-script=vamp-plugin.map
+LDFLAGS = -shared -Wl,-soname=$(PLUGIN) -lvamp-sdk -L/usr/local/lib -lfftw3f -Wl,--version-script=vamp-plugin.map
 
 
 $(PLUGIN): $(PLUGIN_CODE_OBJECTS) lotek-plugins.o
@@ -93,10 +93,10 @@ testDynamicQuantile: DynamicQuantile.h testDynamicQuantile.cpp
 testEdgeDetector: EdgeDetector.h testEdgeDetector.cpp
 	g++ $(CXXFLAGS) -o testEdgeDetector testEdgeDetector.cpp
 
-testVariablePulseDetector: VariablePulseDetector.h testVariablePulseDetector.cpp 
+testVariablePulseDetector: VariablePulseDetector.h testVariablePulseDetector.cpp
 	g++ $(CXXFLAGS) -o testVariablePulseDetector testVariablePulseDetector.cpp
 
-testFixedPulseDetector: FixedPulseDetector.h testFixedPulseDetector.cpp 
+testFixedPulseDetector: FixedPulseDetector.h testFixedPulseDetector.cpp
 	g++ $(CXXFLAGS) -o testFixedPulseDetector testFixedPulseDetector.cpp
 
 testAccordion: Accordion.h testAccordion.cpp
@@ -111,7 +111,7 @@ testMovingSum: MovingSum.h testMovingSum.cpp
 testSlidingSpectrum: SlidingSpectrum.h testSlidingSpectrum.o SlidingSpectrum.o
 	g++ $(CXXFLAGS) -o testSlidingSpectrum SlidingSpectrum.o testSlidingSpectrum.cpp -lfftw3f
 
-testNarrowBandSlidingSpectrum: NarrowBandSlidingSpectrum.h testNarrowBandSlidingSpectrum.o 
+testNarrowBandSlidingSpectrum: NarrowBandSlidingSpectrum.h testNarrowBandSlidingSpectrum.o
 	g++ $(CXXFLAGS) -o testNarrowBandSlidingSpectrum testNarrowBandSlidingSpectrum.cpp
 
 testSpectralPulseFinder: SpectralPulseFinder.h testSpectralPulseFinder.cpp SlidingSpectrum.o
@@ -131,10 +131,9 @@ clean:
 	testNarrowBandSpectralPulseFinder	\
 	testPeakFinder				\
 	testSpectralPulseFinder			\
-	testVariablePulseDetector		 
+	testVariablePulseDetector
 
 
 install: $(PLUGIN)
 	if [ "$(CXXFLAGS)" != "$(CXXFLAGS_DEBUG)" ]; then strip $(PLUGIN); fi
 	cp -f $(PLUGIN) $(PLUGIN_INSTALL_DIR)
-
