@@ -10,7 +10,7 @@
        An API for audio analysis and feature extraction plugins.
        Centre for Digital Music, Queen Mary, University of London.
        Copyright 2006 Chris Cannam.
-  
+
     Permission is hereby granted, free of charge, to any person
     obtaining a copy of this software and associated documentation
     files (the "Software"), to deal in the Software without
@@ -44,10 +44,14 @@
 #include "SNRZFindPulse.h"
 #include "FindPulseFDBatch.h"
 #include "FindPulseFD.h"
+#include "FindPulseTDBatch.h"
+#include "FindPulseTD.h"
 
 static Vamp::PluginAdapter<SNRZFindPulse> SNRZFindPulseAdapater;
 static Vamp::PluginAdapter<FindPulseFDBatch> findPulseFDBatchAdapter;
 static Vamp::PluginAdapter<FindPulseFD> findPulseFDAdapter;
+static Vamp::PluginAdapter<FindPulseTDBatch> findPulseTDBatchAdapter;
+static Vamp::PluginAdapter<FindPulseTD> findPulseTDAdapter;
 
 const VampPluginDescriptor *vampGetPluginDescriptor(unsigned int version,
                                                     unsigned int index)
@@ -58,6 +62,8 @@ const VampPluginDescriptor *vampGetPluginDescriptor(unsigned int version,
     case  0: return SNRZFindPulseAdapater.getDescriptor();
     case  1: return findPulseFDBatchAdapter.getDescriptor();
     case  2: return findPulseFDAdapter.getDescriptor();
+    case  3: return findPulseTDBatchAdapter.getDescriptor();
+    case  4: return findPulseTDAdapter.getDescriptor();
     default: return 0;
     }
 }
